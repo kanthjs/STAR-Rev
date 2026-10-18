@@ -1,0 +1,8 @@
+Test for Homogeneity of Variances 
+---------------------------------------------------- 
+Grp     Variable   Method      DF   F Value   Pr(>F)
+---------------------------------------------------- 
+group   weight     Levene       2      1.12   0.3412
+---------------------------------------------------- 
+    Grp Variable Method DF F Value Pr(>F)
+1 group   weight Levene  2   1.119 0.3412

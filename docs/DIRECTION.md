@@ -8,7 +8,7 @@ Build a **web app whose R engine runs in the user's browser (webR)**, hosted as 
 
 ## Why it looks feasible
 
-- `star-r/` is pure R (no C/Fortran to compile).
+- `engine/` is pure R (no C/Fortran to compile).
 - All 12 dependencies exist in the webR package repo for R 4.5 (checked 2026-10-18 against `repo.r-wasm.org/bin/emscripten/contrib/4.5/PACKAGES`): cluster, lme4, multcomp, fitdistrplus, leaps, vegan, lattice, permute, ade4, R.methodsS3, R.oo, MASS. Also available: lmerTest, agricolae, blocksdesign, FielDHub, shiny, bslib, DT, openxlsx.
 - **Not yet tried**: running STAR itself on webR; download size, first-load time and calculation speed are unknown.
 

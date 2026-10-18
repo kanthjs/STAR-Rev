@@ -1,0 +1,149 @@
+Analysis of Variance
+Latin Square Design
+
+=============================================== 
+ANALYSIS FOR RESPONSE VARIABLE: GRAINYIELD 
+=============================================== 
+
+Summary Information
+------------------------------------- 
+FACTOR   NO. OF LEVELS   LEVELS      
+------------------------------------- 
+MAIZE    4               A, B, C, D  
+ROW      4               1, 2, 3, 4  
+COLUMN   4               1, 2, 3, 4  
+------------------------------------- 
+Number of Observations Read and Used: 16 
+
+
+ANOVA TABLE
+Response Variable: GRAINYIELD
+---------------------------------------------------------
+Source    DF  Sum of Square  Mean Square  F Value Pr(> F)
+---------------------------------------------------------
+ROW        3         0.0302       0.0101     0.47  0.7170
+COLUMN     3         0.8273       0.2758    12.77  0.0051
+MAIZE      3         0.4268       0.1423     6.59  0.0251
+Error      6         0.1296       0.0216                 
+Total     15         1.4139                              
+---------------------------------------------------------
+
+Summary Statistics
+------------------------- 
+  CV(%)   GRAINYIELD Mean
+------------------------- 
+  11.01              1.34
+------------------------- 
+
+Standard Errors
+------------------ 
+Effects     StdErr
+------------------ 
+ROW         0.1039
+COLUMN      0.1039
+MAIZE       0.1039
+------------------ 
+
+Pairwise Mean Comparison of MAIZE
+
+Least Significant Difference (LSD) Test
+
+Alpha                            0.05
+Error Degrees of Freedom            6
+Error Mean Square              0.0216
+Critical Value                 2.4469
+Test Statistics                0.2543
+
+Summary of the Result:
+----------------------------- 
+MAIZE     means     N group  
+----------------------------- 
+A          1.46     4 a      
+B          1.47     4 a      
+C          1.07     4  b     
+D          1.34     4 a      
+----------------------------- 
+Means with the same letter are not significantly different.
+
+
+$data
+   ROW COLUMN MAIZE GRAINYIELD setVar GRAINYIELD_pred GRAINYIELD_resid
+1    1      1     B      1.640      1        1.793125        -0.153125
+2    1      2     D      1.210      1        1.171875         0.038125
+3    1      3     C      1.425      1        1.338125         0.086875
+4    1      4     A      1.345      1        1.316875         0.028125
+5    2      1     C      1.475      1        1.321875         0.153125
+6    2      2     A      1.185      1        1.229375        -0.044375
+7    2      3     D      1.400      1        1.541875        -0.141875
+8    2      4     B      1.290      1        1.256875         0.033125
+9    3      1     A      1.670      1        1.686875        -0.016875
+10   3      2     C      0.710      1        0.801875        -0.091875
+11   3      3     B      1.665      1        1.643125         0.021875
+12   3      4     D      1.180      1        1.093125         0.086875
+13   4      1     D      1.565      1        1.548125         0.016875
+14   4      2     B      1.290      1        1.191875         0.098125
+15   4      3     A      1.655      1        1.621875         0.033125
+16   4      4     C      0.660      1        0.808125        -0.148125
+
+$aovObject
+$aovObject[[1]]
+$aovObject[[1]][[1]]
+Call:
+   aov(formula = formula(mymodel), data = tempData)
+
+Terms:
+                     ROW   COLUMN    MAIZE Residuals
+Sum of Squares  0.030155 0.827342 0.426842  0.129584
+Deg. of Freedom        3        3        3         6
+
+Residual standard error: 0.146961 
+Estimated effects may be unbalanced
+
+
+
+$rvWithSigEffect
+[1] "GRAINYIELD"
+
+$aovTable
+$aovTable[[1]]
+$aovTable[[1]][[1]]
+            Df Sum Sq Mean Sq F value Pr(>F)   
+ROW          3  0.030  0.0101    0.47 0.7170   
+COLUMN       3  0.827  0.2758   12.77 0.0051 **
+MAIZE        3  0.427  0.1423    6.59 0.0251 * 
+Residuals    6  0.130  0.0216                  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1 
+
+
+
+$pwOption
+$pwOption[[1]]
+$pwOption[[1]][[1]]
+$pwOption[[1]][[1]]$rv
+[1] "GRAINYIELD"
+
+$pwOption[[1]][[1]]$test
+[1] "LSD"
+
+$pwOption[[1]][[1]]$sigEffect
+[1] "MAIZE"
+
+$pwOption[[1]][[1]]$setvar
+[1] "NULL"
+
+$pwOption[[1]][[1]]$set
+[1] "1"
+
+
+
+
+$model
+[1] "ROW + COLUMN + MAIZE"
+
+$model2
+[1] "ROW + COLUMN + MAIZE"
+
+$alpha
+[1] 0.05
+

@@ -5,15 +5,25 @@ Goal: reuse the R statistics engine on a modern R (option "A": wrap the R packag
 
 ## Layout
 
+Restructured: `reference/` is read-only material from the reverse engineering; `engine/` is the single living copy of the R code; `prototype/` is the web app.
+
 | Path | What |
 |---|---|
-| `input/` | Copies of the original `Star_1.0.0.201401091026.jar` and the jars inside it (originals untouched) |
-| `tools/cfr-0.152.jar` | CFR decompiler (runs on the bundled Java 6) |
-| `src/` | Decompiled Java GUI (297 classes, `org.irri.breedingtool.*`) |
-| `src-rjavamanager/` | Decompiled `RJavaManager1.0.jar`: the Java-to-R bridge |
-| `src-R/` | All 257 functions of the R package STAR 2.0.2, one `.R` per function, pristine (from `deparse`, comments lost) |
-| `star-r/` | Installable port of the R package for R 4.5.2 (edits listed below) |
-| `scripts/` | `extract_star.R`, `gen_namespace.R`, `install_deps.R`, `smoke.R`, trace helpers |
+| `reference/java-gui/` | Decompiled Java GUI (297 classes, `org.irri.breedingtool.*`) |
+| `reference/java-rbridge/` | Decompiled `RJavaManager1.0.jar`: the Java-to-R bridge |
+| `reference/r-original/` | All 257 functions of the original R package STAR 2.0.2, one `.R` per function, pristine (from `deparse`, comments lost) |
+| `reference/original-outputs/` | Printed output of the original STAR on R 2.15.1 for the shared test cases |
+| `reference/tools/cfr-0.152.jar` | CFR decompiler (runs on the bundled Java 6) |
+| `engine/` | Installable R package for R 4.5.2: the port, edited as listed below. Tests in `engine/tests/` |
+| `prototype/` | Shiny/Shinylive web app. `prototype/app/star/` is generated from `engine/R` by `scripts/build_app.R` (git-ignored) |
+| `scripts/` | `extract_star.R` (recover R sources), `gen_namespace.R`, `install_deps.R`, `build_app.R`, `compare_cases.R` (run the shared cases on any R), `smoke.R` |
+| `input/` | (git-ignored, local only) copies of the original jar files |
+
+Scope decision (2026-10-18): the **randomisation / field-layout functions were removed** from the engine and the app (all `design*`, `randomizeLattice`, `GenerateFactor`, `FactorList`, `printLayout`; 34 files) because few people use them. They remain in `reference/r-original/`. This also removes the dependency on DiGGer. The engine now has 223 functions.
+
+## Tests
+
+`Rscript -e 'install.packages("engine", repos = NULL, type = "source")'` then, from `engine/tests`, `Rscript testthat.R`. The suite runs the 23 cases in `engine/tests/testthat/cases.R` and compares the printed output with `expected/` (produced by the original STAR on R 2.15.1) after normalising whitespace and rounding numbers to 3 significant digits. Cases run in one test block because the original functions change `options(digits, width)` and later cases print with them. `Kmeans`, `ClusterAgglo`, `Discriminant`, `FitDistrib` are not in the suite (random labels / not yet working with my arguments).
 
 ## How the program works
 
@@ -22,10 +32,10 @@ Goal: reuse the R statistics engine on a modern R (option "A": wrap the R packag
 - `initStar()` runs `library(STAR)`; `initPBtool()` runs `library(PBTools)` (PBTools not analysed).
 - Note the data argument is the **name** of a data frame as a string (`data = "dataRead"`); the `.default` methods also accept a data frame.
 
-## Changes made in `star-r/` (relative to the recovered sources)
+## Changes made in `engine/` (relative to the recovered sources)
 
 1. **Package skeleton**: wrote `DESCRIPTION` (Depends R >= 4.0, Imports listed), copied the 56 `.rda` datasets from the old install, kept the original `NAMESPACE` as `NAMESPACE.orig`.
-2. **S3 registration** (`scripts/gen_namespace.R`): modern R no longer finds unregistered S3 methods inside a namespace, so every generic failed with "no applicable method". The script finds generics (bodies calling `UseMethod`) and writes 104 `S3method()` lines, plus `import(stats, graphics, grDevices, utils)`. Re-run it after adding methods.
+2. **S3 registration** (`scripts/gen_namespace.R`): modern R no longer finds unregistered S3 methods inside a namespace, so every generic failed with "no applicable method". The script finds generics (bodies calling `UseMethod`) and writes 88 `S3method()` lines and explicit `export()` lines (excluding the zzz_compat shims so attaching STAR does not mask base functions), plus `import(stats, graphics, grDevices, utils)`. Re-run it after adding methods.
 3. **`R/zzz_compat.R`**: shims masking `data.frame`, `read.csv`, `read.table`, `read.delim` inside the namespace with `stringsAsFactors = TRUE`. Needed because R 4.0 changed the default; e.g. `NormalityTest` relied on `levels()` of a character column and produced a column named `NA`. This is a blunt fix; individual call sites could be changed instead.
 4. **`PCA.default.R`**: added `matx <- match.arg(matx)`. Since R 4.2 `if (c("corr","cov") == "corr")` is an error (the old Java caller always passed one value).
 
@@ -41,7 +51,7 @@ Findings on the two items that looked broken:
 - `designLattice`: not a bug. It needs `numFieldRow` to be a multiple of sqrt(number of treatments) (GUI supplies it); default 1 fails with "subscript out of bounds". A friendlier error would be a worthwhile fix.
 - `designAlphaLattice`: not run. It calls **DiGGer**.
 
-## Known blocker: DiGGer
+## Former blocker: DiGGer (moot now: design functions are out of scope)
 
 - `DiGGer` 0.2-3 (2011, Neil Coombes, NSW DPI) is not on CRAN (not in the index, `Archive/DiGGer/` returns 404). The old install has only a Windows binary built for R 2.14 (`C:\RPackages\R-2.15.1\library\DiGGer`).
 - Its DESCRIPTION license is "NSW DPI Freeware Licence" (not GPL); the stated source URL `austatgen.org/files/software/downloads` returned HTTP 403 when probed. Redistribution terms are unverified.
@@ -54,22 +64,22 @@ STAR R package: GPL (>= 2), so derivatives must stay GPL. The Java GUI's license
 
 ## Suggested next steps
 
-1. Build a regression suite: run the original R 2.15.1 and the port on the same inputs (the datasets in `star-r/data`) and diff the outputs.
+1. Build a regression suite: run the original R 2.15.1 and the port on the same inputs (the datasets in `engine/data`) and diff the outputs.
 2. Widen smoke coverage to every exported function.
 3. Wrap the port in an HTTP API (e.g. plumber) returning structured results instead of `sink` text.
 4. Decide what to do about DiGGer.
 
 ## Update: additional fixes found by comparing against R 2.15.1
 
-The earlier smoke test only checked "no error", which hid wrong output (e.g. AOVTest printed "The data set does not contain any observations" and still returned). Comparison against the original is the real test: `scripts/compare_cases.R <outdir>` run on both R versions, outputs in `compare/old` (R 2.15.1, original packages) and `compare/new` (R 4.5.2 port).
+The earlier smoke test only checked "no error", which hid wrong output (e.g. AOVTest printed "The data set does not contain any observations" and still returned). Comparison against the original is the real test: `scripts/compare_cases.R <outdir>` run on both R versions, outputs in `reference/original-outputs` (R 2.15.1, original packages) and (not stored) (R 4.5.2 port).
 
 5. **`AOVTest.default.R`, `BIBDTest.default.R`**: `cbind(data, setVar = "1")` now yields a character column (R 4.0), so `nlevels()` was 0 and no analysis ran. Changed to `factor("1")`.
 6. **`R/zzz_compat.R`**: `nchar()` wrapper. R < 3.3 returned 2 for `NA`; newer returns `NA`, which made `sum(colwidth)` NA and broke `printAOVTable` ("invalid 'times' argument") in every ANOVA/regression table. The wrapper passes `keepNA = FALSE`.
 
 Run the comparison with:
 ```
-scripts/compare_cases.R compare/old   # with C:\RPackages\R-2.15.1\bin\i386\Rscript.exe, R_LIBS_USER unset
-scripts/compare_cases.R compare/new   # with R 4.5.2 and R_LIBS_USER pointing at the user library
+scripts/compare_cases.R reference/original-outputs   # with C:\RPackages\R-2.15.1\bin\i386\Rscript.exe, R_LIBS_USER unset
+scripts/compare_cases.R /tmp/new   # with R 4.5.2 and R_LIBS_USER pointing at the user library (then diff against reference/original-outputs, or run the testthat suite)
 ```
 
 ### Result (27 cases)

@@ -1,3 +1,0 @@
-`dwt` <-
-function (...) 
-durbinWatsonTest(...)

@@ -101,7 +101,7 @@ function (data, respvar, trmt, block, set = NULL, method = NULL,
     if (is.null(set)) {
         set <- make.unique(c(names(data), "setVar"))[length(make.unique(c(names(data), 
             "setVar")))]
-        data <- cbind(data, setVar = "1")
+        data <- cbind(data, setVar = factor("1"))
         addSet <- TRUE
     }
     else {

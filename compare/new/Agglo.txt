@@ -1,1 +1,1 @@
-ERROR: unused argument (method = "average")
+ERROR: object 'memSummary' not found

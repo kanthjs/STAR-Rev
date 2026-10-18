@@ -260,7 +260,7 @@ function (data, design, respvar, factor1, factor2 = NULL, factor3 = NULL,
     if (is.null(set)) {
         set <- make.unique(c(names(data), "setVar"))[length(make.unique(c(names(data), 
             "setVar")))]
-        data <- cbind(data, setVar = "1")
+        data <- cbind(data, setVar = factor("1"))
         addSet <- TRUE
     }
     else {

@@ -1,1 +1,22 @@
-ERROR: unused argument (respvar = "weight")
+Rank Sums for Variable weight
+Classified by Variable group
+-------------------------------------------- 
+group       N   Sum of Ranks   Mean of Ranks
+-------------------------------------------- 
+ctrl       10         147.50           14.75
+trt1       10         103.50           10.35
+trt2       10         214.00           21.40
+-------------------------------------------- 
+* Average scores are used for ties.
+
+
+Kruskal-Wallis rank sum test 
+----------------------------
+Chi-Square            7.9882
+DF                         2
+Pr > Chi-Square       0.0184
+----------------------------
+
+
+  Group Variable Statistics DF pvalue
+1 group   weight       7.99  2 0.0184

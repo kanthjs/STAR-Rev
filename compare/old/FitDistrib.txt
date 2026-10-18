@@ -1,1 +1,1 @@
-ERROR: unused argument(s) (var = "mpg", distribution = "norm")
+ERROR: EXPR must be a length 1 vector

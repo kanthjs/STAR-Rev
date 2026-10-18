@@ -32,10 +32,10 @@ cases <- list(
   AOV_LSD          = quote(AOVTest(data = "mm", design = "LSD", respvar = "GRAINYIELD", factor1 = "MAIZE", rep1 = "ROW", rep2 = "COLUMN", pwTest = "LSD", pwVar = "MAIZE")),
   PCA              = quote(PCA(data = "ir", var = c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width"), scatterMatx = FALSE, scree = FALSE, biplot = FALSE, pcaplot = FALSE, saveScore = FALSE)),
   Kmeans           = quote({ set.seed(1); ClusterKmeans(data = "ir", var = c("Sepal.Length", "Petal.Length"), kgraph = FALSE, saveMem = FALSE, clusterNum = 3) }),
-  Agglo            = quote(ClusterAgglo(data = "ir", var = c("Sepal.Length", "Petal.Length"), method = "average", dendrogram = FALSE, clusterMem = FALSE)),
-  Discriminant     = quote(Discriminant(data = "ir", var = c("Sepal.Length", "Petal.Length"), grp = "Species")),
-  FitDistrib       = quote(FitDistrib(data = "mt", var = "mpg", distribution = "norm")),
-  KruskalWallis    = quote(KruskalWallisTest(data = "pg", respvar = "weight", grp = "group")),
+  Agglo            = quote(ClusterAgglo(data = "ir", var = c("Sepal.Length", "Petal.Length"), clusmethod = "Average", dendrogram = FALSE, clusterBox = FALSE, scatterMatx = FALSE, clusterMem = FALSE)),
+  Discriminant     = quote(Discriminant(data = "ir", outputPath = tempdir(), vars = c("Sepal.Length", "Petal.Length"), grpVar = "Species")),
+  FitDistrib       = quote(FitDistrib(data = "mt", outputPath = tempdir(), yVar = "mpg", distrib = "norm")),
+  KruskalWallis    = quote(KruskalWallisTest(data = "pg", var = "weight", grp = "group")),
   Heterosk         = quote(HeteroskedasticityTest(data = "pg", var = "weight", grp = "group", method = "levene")),
   Skew_kurt        = quote(print(c(skewness(mt$mpg), kurtosis(mt$mpg), coefVar(mt$mpg), se.mean(mt$mpg))))
 )

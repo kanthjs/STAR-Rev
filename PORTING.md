@@ -58,3 +58,28 @@ STAR R package: GPL (>= 2), so derivatives must stay GPL. The Java GUI's license
 2. Widen smoke coverage to every exported function.
 3. Wrap the port in an HTTP API (e.g. plumber) returning structured results instead of `sink` text.
 4. Decide what to do about DiGGer.
+
+## Update: additional fixes found by comparing against R 2.15.1
+
+The earlier smoke test only checked "no error", which hid wrong output (e.g. AOVTest printed "The data set does not contain any observations" and still returned). Comparison against the original is the real test: `scripts/compare_cases.R <outdir>` run on both R versions, outputs in `compare/old` (R 2.15.1, original packages) and `compare/new` (R 4.5.2 port).
+
+5. **`AOVTest.default.R`, `BIBDTest.default.R`**: `cbind(data, setVar = "1")` now yields a character column (R 4.0), so `nlevels()` was 0 and no analysis ran. Changed to `factor("1")`.
+6. **`R/zzz_compat.R`**: `nchar()` wrapper. R < 3.3 returned 2 for `NA`; newer returns `NA`, which made `sum(colwidth)` NA and broke `printAOVTable` ("invalid 'times' argument") in every ANOVA/regression table. The wrapper passes `keepNA = FALSE`.
+
+Run the comparison with:
+```
+scripts/compare_cases.R compare/old   # with C:\RPackages\R-2.15.1\bin\i386\Rscript.exe, R_LIBS_USER unset
+scripts/compare_cases.R compare/new   # with R 4.5.2 and R_LIBS_USER pointing at the user library
+```
+
+### Result (27 cases)
+
+Identical output: DescriptiveStatistics (x2), CompareMeans independent/paired, Correlation (Pearson, Spearman), Crosstab, LinearRegressionAnalysis (incl. CI, covariance, VIF), HeteroskedasticityTest, skewness/kurtosis helpers, KruskalWallisTest.
+
+Differences that are not errors in the port:
+- trailing whitespace in lines printed by R's own `print.summary.lm`/`cat` (AOV*, 4-10 lines each);
+- last digits of the Shapiro-Wilk statistic/p-value (R fixed the algorithm in 4.x; e.g. 0.04880736 vs 0.04880824);
+- `prcomp` print headings (`Rotation (n x k) = (4 x 4):`) and a row name (`mean of x`) in CompareMeans one-sample;
+- k-means cluster numbering differs because `set.seed(1)` + `sample()` changed in R 3.6; cluster contents are the same sets with permuted labels. Any randomised output (all `design*` randomisations) will differ for the same seed.
+
+Not verified: `ClusterAgglo`, `Discriminant`, `FitDistrib` fail with the same error on both R versions with my test arguments (`memSummary` / `tempData` not found / `EXPR must be a length 1 vector`); either my calls are incomplete or these are original bugs. Needs checking against how `STARAnalysisManager.java` calls them. Not compared at all: graph functions, designs (random), combAOVTest, ssaTest, MANOVA, nonlinear regression, PowerTransform, data-manipulation functions.

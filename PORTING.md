@@ -93,3 +93,11 @@ Differences that are not errors in the port:
 - k-means cluster numbering differs because `set.seed(1)` + `sample()` changed in R 3.6; cluster contents are the same sets with permuted labels. Any randomised output (all `design*` randomisations) will differ for the same seed.
 
 Not verified: `ClusterAgglo`, `Discriminant`, `FitDistrib` fail with the same error on both R versions with my test arguments (`memSummary` / `tempData` not found / `EXPR must be a length 1 vector`); either my calls are incomplete or these are original bugs. Needs checking against how `STARAnalysisManager.java` calls them. Not compared at all: graph functions, designs (random), combAOVTest, ssaTest, MANOVA, nonlinear regression, PowerTransform, data-manipulation functions.
+
+## Update: one-factor ANOVA (CRD and RCBD) with structured output
+
+- `engine/R/star_aov.R` (new, not in the original): `star_aov(data, response, treatment, block = NULL, design = "CRD" | "RCBD", test, alpha)` wraps the original `AOVTest` and returns `anova`, `means` (with SE and mean-separation letters), `cv`, `grand_mean`, a one-sentence `summary` and the classic printed `report`. `star_plot_means()` draws means with SE bars and letters. `star_aov_rcbd()` is kept as a thin wrapper.
+- Tested against the original STAR on R 2.15.1: RCBD rice example (F = 8.54, CV = 9.42) and CRD insecticide example (F = 9.83, CV = 15.09, HSD letters ab/c/a/bc/bc/ab/a).
+- Bug found by the CRD example: STAR pads treatment names with trailing spaces in its comparison tables ("Azodin       "), so matching them against the factor levels dropped two treatments. Names are now trimmed before matching.
+- App: design selector (CRD / RCBD), results tab, plot tab, classic report tab, Excel download. `prototype/tests/test_server.R` covers both designs.
+- The user wrote "CDR"; this was interpreted as CRD (completely randomized design).

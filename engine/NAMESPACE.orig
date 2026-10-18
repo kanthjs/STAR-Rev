@@ -13,3 +13,4 @@ S3method(vcov, powerTransform)
 S3method(testTransform,powerTransform)
 
 
+S3method(print,star_aov_rcbd)

@@ -55,7 +55,9 @@ ui <- navbarPage(
         radioButtons("src", "Data", c("Example (rice yield, 6 N levels x 3 reps)" = "ex", "Upload CSV" = "up")),
         conditionalPanel("input.src == 'up'", fileInput("file", "CSV file", accept = ".csv")),
         uiOutput("var_pickers"),
-        selectInput("pw", "Mean comparison", c("None" = "", "LSD", "Tukey", "Duncan")),
+        selectInput("pw", "Mean comparison (run when the effect is significant)",
+                    c("Automatic: LSD if <= 5 levels, else Tukey" = "", "LSD" = "LSD", "Tukey HSD" = "HSD",
+                      "Duncan" = "duncan", "SNK" = "SNK", "Scheffe" = "scheffe")),
         actionButton("go_aov", "Run ANOVA", class = "btn-primary")
       ),
       mainPanel(
@@ -113,7 +115,8 @@ server <- function(input, output, session) {
     if (!is.numeric(d[[input$resp]])) return(list(error = "The response variable must be numeric."))
     assign("star_data", d, envir = globalenv())
     args <- list(data = "star_data", design = "RCBD", respvar = input$resp, factor1 = input$trt, rep1 = input$blk)
-    if (nzchar(input$pw)) { args$pwTest <- input$pw; args$pwVar <- input$trt }
+    # In STAR, pwVar lists the *response* variables that use pwTest; others get the automatic choice
+    if (nzchar(input$pw)) { args$pwTest <- input$pw; args$pwVar <- input$resp }
     res <- run_quiet(do.call(AOVTest, args))
     if (!is.null(res$error)) return(list(error = res$error))
     list(text = res$text)

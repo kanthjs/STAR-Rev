@@ -1,0 +1,31 @@
+Descriptive Statistics
+--------------------------------------------------------------------- 
+Difference                     N_NonMissObs   Mean   StdDev   SE_Mean
+--------------------------------------------------------------------- 
+Sepal.Length - Sepal.Width              150   2.79   0.9801    0.0800
+--------------------------------------------------------------------- 
+
+Paired Sample t-Test, h0: mean diff = 0
+------------------------------------------------------- 
+Difference                      DF   t Value   Pr(>|t|)
+------------------------------------------------------- 
+Sepal.Length - Sepal.Width     149     34.82     0.0000
+------------------------------------------------------- 
+
+$statistics
+                  Difference  DF  t Value     Pr(>|t|)
+1 Sepal.Length - Sepal.Width 149 34.81519 1.849554e-73
+
+$estimate
+                  Difference N_NonMissObs  Mean    StdDev    SE_Mean
+1 Sepal.Length - Sepal.Width          150 2.786 0.9800719 0.08002254
+
+$nullValue
+[1] 0
+
+$alternative
+[1] "two.sided"
+
+$method
+[1] "Paired Sample t-Test"
+

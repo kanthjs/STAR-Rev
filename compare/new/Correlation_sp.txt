@@ -1,0 +1,42 @@
+CORRELATION ANALYSIS 
+
+Spearman's rank correlation rho, Prob > |r|
+
+                     mpg        hp        wt
+mpg   coef        1.0000   -0.8947   -0.8864
+      p-value               0.0000    0.0000
+      n               32        32        32
+hp    coef       -0.8947    1.0000    0.7747
+      p-value     0.0000              0.0000
+      n               32        32        32
+wt    coef       -0.8864    0.7747    1.0000
+      p-value     0.0000    0.0000          
+      n               32        32        32
+
+
+[[1]]
+[[1]]$procedure
+[1] "Spearman's rank correlation rho"
+
+[[1]]$estimate
+          mpg        hp        wt
+mpg  1.000000 -0.894665 -0.886422
+hp  -0.894665  1.000000  0.774677
+wt  -0.886422  0.774677  1.000000
+
+[[1]]$pvalue
+            mpg          hp          wt
+mpg             5.08597e-12 1.48759e-11
+hp  5.08597e-12             1.95380e-07
+wt  1.48759e-11 1.95380e-07            
+
+[[1]]$nobs
+    mpg hp wt
+mpg  32 32 32
+hp   32 32 32
+wt   32 32 32
+
+[[1]]$alternative
+[1] "two.sided"
+
+

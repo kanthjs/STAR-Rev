@@ -1,0 +1,12 @@
+Test for Normality 
+------------------------------------------------------------------------ 
+Grp       Level        Variable       Method           W Value   Pr(< W)
+------------------------------------------------------------------------ 
+Species   setosa       Sepal.Length   Shapiro-Wilk      0.9777    0.4595
+Species   versicolor   Sepal.Length   Shapiro-Wilk      0.9778    0.4647
+Species   virginica    Sepal.Length   Shapiro-Wilk      0.9712    0.2583
+------------------------------------------------------------------------ 
+      Grp      Level     Variable       Method   W Value   Pr(< W)
+1 Species     setosa Sepal.Length Shapiro-Wilk 0.9776985 0.4595132
+2 Species versicolor Sepal.Length Shapiro-Wilk 0.9778357 0.4647370
+3 Species  virginica Sepal.Length Shapiro-Wilk 0.9711794 0.2583147

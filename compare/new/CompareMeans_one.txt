@@ -1,0 +1,35 @@
+Descriptive Statistics
+------------------------------------------------------------------- 
+Variable       N   Lower CI*    Mean   Upper CI*   StdDev   SE_Mean
+------------------------------------------------------------------- 
+mpg           32       17.92   20.09       22.26     6.03      1.07
+------------------------------------------------------------------- 
+* At 95% Confidence Level.
+
+
+One Sample t-Test, h0: mean = 20
+------------------------------------- 
+Variable      DF   t Value   Pr(>|t|)
+------------------------------------- 
+mpg           31    0.0851     0.9328
+------------------------------------- 
+$statistics
+  Variable DF    t Value  Pr(>|t|)
+1      mpg 31 0.08506004 0.9327606
+
+$estimate
+          Variable  N Lower CI*     Mean Upper CI*   StdDev  SE_Mean
+mean of x      mpg 32  17.91768 20.09062  22.26357 6.026948 1.065424
+
+$confLevel
+[1] 0.95
+
+$nullValue
+[1] 20
+
+$alternative
+[1] "two.sided"
+
+$method
+[1] "One Sample t-Test"
+

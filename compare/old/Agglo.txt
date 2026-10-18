@@ -1,0 +1,1 @@
+ERROR: unused argument(s) (method = "average")

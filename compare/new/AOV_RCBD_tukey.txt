@@ -1,0 +1,113 @@
+Analysis of Variance
+Randomized Complete Block Design
+
+========================================== 
+ANALYSIS FOR RESPONSE VARIABLE: Yield 
+========================================== 
+
+Error: The data set does not contain any observations.
+
+Error: The data set does not contain any observations.
+
+$data
+   Rep Nitrogen Variety Yield setVar
+1    1        1   C4-63  3464      1
+2    2        1   C4-63  2944      1
+3    3        1   C4-63  3142      1
+4    1        2   C4-63  4768      1
+5    2        2   C4-63  6004      1
+6    3        2   C4-63  5556      1
+7    1        3   C4-63  6244      1
+8    2        3   C4-63  5724      1
+9    3        3   C4-63  6014      1
+10   1        4   C4-63  5792      1
+11   2        4   C4-63  5880      1
+12   3        4   C4-63  6370      1
+13   1        5   C4-63  7080      1
+14   2        5   C4-63  6662      1
+15   3        5   C4-63  6320      1
+16   1        6   C4-63  5594      1
+17   2        6   C4-63  7122      1
+18   3        6   C4-63  5480      1
+19   1        1     IR5  3944      1
+20   2        1     IR5  5314      1
+21   3        1     IR5  3660      1
+22   1        2     IR5  6502      1
+23   2        2     IR5  5858      1
+24   3        2     IR5  5586      1
+25   1        3     IR5  6008      1
+26   2        3     IR5  6127      1
+27   3        3     IR5  6642      1
+28   1        4     IR5  7139      1
+29   2        4     IR5  6982      1
+30   3        4     IR5  6564      1
+31   1        5     IR5  7682      1
+32   2        5     IR5  6594      1
+33   3        5     IR5  6576      1
+34   1        6     IR5  6228      1
+35   2        6     IR5  7387      1
+36   3        6     IR5  6006      1
+37   1        1     IR8  4430      1
+38   2        1     IR8  4478      1
+39   3        1     IR8  3850      1
+40   1        2     IR8  5418      1
+41   2        2     IR8  5166      1
+42   3        2     IR8  6432      1
+43   1        3     IR8  6076      1
+44   2        3     IR8  6420      1
+45   3        3     IR8  6704      1
+46   1        4     IR8  6462      1
+47   2        4     IR8  7056      1
+48   3        4     IR8  6680      1
+49   1        5     IR8  7290      1
+50   2        5     IR8  7848      1
+51   3        5     IR8  7552      1
+52   1        6     IR8  8452      1
+53   2        6     IR8  8832      1
+54   3        6     IR8  8818      1
+55   1        1    Peta  4126      1
+56   2        1    Peta  4482      1
+57   3        1    Peta  4836      1
+58   1        2    Peta  5192      1
+59   2        2    Peta  4604      1
+60   3        2    Peta  4652      1
+61   1        3    Peta  4546      1
+62   2        3    Peta  5744      1
+63   3        3    Peta  4146      1
+64   1        4    Peta  2774      1
+65   2        4    Peta  5036      1
+66   3        4    Peta  3638      1
+67   1        5    Peta  1414      1
+68   2        5    Peta  1960      1
+69   3        5    Peta  2766      1
+70   1        6    Peta  2248      1
+71   2        6    Peta  1380      1
+72   3        6    Peta  2014      1
+
+$aovObject
+$aovObject[[1]]
+list()
+
+
+$rvWithSigEffect
+NULL
+
+$aovTable
+$aovTable[[1]]
+list()
+
+
+$pwOption
+$pwOption[[1]]
+list()
+
+
+$model
+[1] "Rep + Nitrogen*Variety"
+
+$model2
+[1] "Rep + Nitrogen*Variety"
+
+$alpha
+[1] 0.05
+

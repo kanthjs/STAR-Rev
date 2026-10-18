@@ -1,0 +1,5 @@
+ul <- Sys.getenv("R_LIBS_USER"); dir.create(ul, recursive = TRUE, showWarnings = FALSE); .libPaths(c(ul, .libPaths()))
+cat("lib:", ul, "\n")
+install.packages(c("lme4","multcomp","fitdistrplus","leaps","vegan","permute","ade4","R.methodsS3","R.oo"), repos = "https://cloud.r-project.org", lib = ul, type = "binary")
+cat("DiGGer on CRAN:", "DiGGer" %in% rownames(available.packages(repos = "https://cloud.r-project.org")), "\n")
+print(sapply(c("lme4","multcomp","fitdistrplus","leaps","vegan","permute","ade4","R.methodsS3","R.oo"), requireNamespace, quietly = TRUE))

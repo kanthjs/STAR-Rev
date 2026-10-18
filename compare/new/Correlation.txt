@@ -1,0 +1,52 @@
+Descriptive Statistics
+------------------------------------------------------------ 
+Variable     N_NonMissObs     Min      Max     Mean   StdDev
+------------------------------------------------------------ 
+mpg                    32   10.40    33.90    20.09     6.03
+hp                     32   52.00   335.00   146.69    68.56
+wt                     32    1.51     5.42     3.22     0.98
+------------------------------------------------------------ 
+
+
+CORRELATION ANALYSIS 
+
+Pearson's product-moment correlation, Prob > |r|
+
+                     mpg        hp        wt
+mpg   coef        1.0000   -0.7762   -0.8677
+      p-value               0.0000    0.0000
+      n               32        32        32
+hp    coef       -0.7762    1.0000    0.6587
+      p-value     0.0000              0.0000
+      n               32        32        32
+wt    coef       -0.8677    0.6587    1.0000
+      p-value     0.0000    0.0000          
+      n               32        32        32
+
+
+[[1]]
+[[1]]$procedure
+[1] "Pearson's product-moment correlation"
+
+[[1]]$estimate
+          mpg        hp        wt
+mpg  1.000000 -0.776168 -0.867659
+hp  -0.776168  1.000000  0.658748
+wt  -0.867659  0.658748  1.000000
+
+[[1]]$pvalue
+            mpg          hp          wt
+mpg             1.78784e-07 1.29396e-10
+hp  1.78784e-07             4.14583e-05
+wt  1.29396e-10 4.14583e-05            
+
+[[1]]$nobs
+    mpg hp wt
+mpg  32 32 32
+hp   32 32 32
+wt   32 32 32
+
+[[1]]$alternative
+[1] "two.sided"
+
+

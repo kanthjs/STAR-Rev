@@ -1,0 +1,54 @@
+Descriptive Statistics
+-------------------------------------------------------------------------------- 
+Variable   Fertilizer       N   Lower CI*    Mean   Upper CI*   StdDev   SE_Mean
+-------------------------------------------------------------------------------- 
+NumFruit   A               15       21.51   23.13       24.75     2.92      0.76
+NumFruit   B               15       19.25   20.87       22.49     3.54      0.91
+NumFruit   Diff(A-B)                -0.16    2.27        4.70     3.25      1.19
+-------------------------------------------------------------------------------- 
+* At 95% Confidence Level.
+
+Homogeneity of Variances
+----------------------------------------------------------- 
+Variable   Method       Num DF   Den DF   F Value   Pr(> F)
+----------------------------------------------------------- 
+NumFruit   Folded F         14       14      1.47    0.4820
+----------------------------------------------------------- 
+
+Two Independent Sample t-Test, h0: mean diff = 0
+----------------------------------------------------------- 
+Variable   Method*   Variances      DF   t Value   Pr(>|t|)
+----------------------------------------------------------- 
+NumFruit   Pooled    Equal          28      1.91     0.0663
+----------------------------------------------------------- 
+* At 0.05 level of significance.
+
+$statistics
+  Variable Method* Variances DF  t Value   Pr(>|t|)
+1 NumFruit  Pooled     Equal 28 1.910922 0.06630239
+
+$equalVariance
+  Variable   Method Num DF Den DF  F Value   Pr(> F)
+1 NumFruit Folded F     14     14 1.467706 0.4820317
+
+$alpha
+[1] 0.05
+
+$estimate
+  Variable Fertilizer  N  Lower CI*      Mean Upper CI*   StdDev   SE_Mean
+1 NumFruit          A 15 21.5138294 23.133333 24.752837 2.924445 0.7550886
+2 NumFruit          B 15 19.2471628 20.866667 22.486171 3.542934 0.9147816
+3 NumFruit  Diff(A-B) NA -0.1630794  2.266667  4.696413 3.248443 1.1861636
+
+$confLevel
+[1] 0.95
+
+$nullValue
+[1] 0
+
+$alternative
+[1] "two.sided"
+
+$method
+[1] "Two Independent Sample t-Test"
+

@@ -101,3 +101,10 @@ Not verified: `ClusterAgglo`, `Discriminant`, `FitDistrib` fail with the same er
 - Bug found by the CRD example: STAR pads treatment names with trailing spaces in its comparison tables ("Azodin       "), so matching them against the factor levels dropped two treatments. Names are now trimmed before matching.
 - App: design selector (CRD / RCBD), results tab, plot tab, classic report tab, Excel download. `prototype/tests/test_server.R` covers both designs.
 - The user wrote "CDR"; this was interpreted as CRD (completely randomized design).
+
+## Update: two treatment factors (factorial CRD and RCBD)
+
+- `star_aov(treatment = c("A", "B"))` now handles two factors for both designs. Results: ANOVA with the `A:B` row, `effects` (F, p, significant), `means` (one data frame per factor), `cells` (cell means with SE) and `simple` (each factor compared within each level of the other, only when the interaction is significant, as STAR does). With a non-significant interaction the significant main effects are compared instead. With `test = "auto"` STAR's rule applies per effect (LSD if <= 5 levels, else Tukey HSD).
+- Checked against the original STAR on R 2.15.1: RCBD Nitrogen x Variety (all ANOVA rows, CV 10.07, letters of both simple-effect tables) and CRD supp x dose (ToothGrowth: F 15.57 / 92.00 / 4.11, CV 19.30, letters).
+- Limits: at most two factors; the design must be complete (every treatment combination present); marginal means assume a balanced layout. Three-factor and split-plot layouts are not covered yet.
+- App: choose one or two treatment factors, four built-in examples, interaction/simple-effect tables laid out like STAR's, grouped-bar interaction plot, Excel with sheets ANOVA / Means / Cell means / Simple effects / Info.

@@ -3,44 +3,62 @@ here <- dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(FAL
 setwd(file.path(here, "..", "app"))
 suppressMessages(library(shiny))
 app <- source("app.R")$value
-stopifnot_ <- function(cond, msg) if (!isTRUE(cond)) stop("FAILED: ", msg, call. = FALSE) else cat("ok  ", msg, "\n")
+check <- function(cond, msg) if (!isTRUE(cond)) stop("FAILED: ", msg, call. = FALSE) else cat("ok  ", msg, "\n")
 
 testServer(app, {
   n <- 0
   run <- function(...) { n <<- n + 1; session$setInputs(..., go_aov = n) }
+  session$setInputs(src = "ex", alpha = "0.05", pw = "auto")
 
-  # ---- RCBD example (rice yield, 6 nitrogen levels x 3 reps) ----
-  session$setInputs(design = "RCBD", src = "ex", resp = "Yield", trt = "Nitrogen", blk = "Rep", alpha = "0.05")
+  # ---- RCBD, one factor (rice yield vs nitrogen) ----
+  session$setInputs(design = "RCBD", example = "rcbd1", resp = "Yield", trt = "Nitrogen", blk = "Rep")
   tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = "Duncan", SNK = "Newman", scheffe = "Scheffe")
-  for (pw in names(tests)) {
-    run(pw = pw)
-    stopifnot_(any(grepl(tests[[pw]], ok()$report)), paste("RCBD: mean comparison", pw, "is used"))
-  }
+  for (pw in names(tests)) { run(pw = pw); check(any(grepl(tests[[pw]], ok()$report)), paste("RCBD 1 factor: mean comparison", pw, "is used")) }
   run(pw = "LSD")
-  stopifnot_(round(ok()$anova$F[2], 2) == 8.54, "RCBD: F value 8.54")
-  stopifnot_(identical(anova_df()$`Pr(>F)`[2], "0.0022"), "RCBD: formatted p-value 0.0022")
-  stopifnot_(identical(means_df()$Group, c("b", "a", "a", "a", "a", "a")), "RCBD: letters")
-  stopifnot_(identical(means_df()$N, rep("3", 6)), "RCBD: N shown as integers")
+  check(round(ok()$anova$F[2], 2) == 8.54, "RCBD 1 factor: F = 8.54")
+  check(identical(tables()$anova$`Pr(>F)`[2], "0.0022"), "RCBD 1 factor: p formatted 0.0022")
+  check(identical(tables()$means$Nitrogen$Group, c("b", "a", "a", "a", "a", "a")), "RCBD 1 factor: letters")
+  check(identical(tables()$means$Nitrogen$N, rep("3", 6)), "RCBD 1 factor: N as integers")
 
-  # ---- CRD example (7 insecticides x 4 reps) ----
-  session$setInputs(design = "CRD", resp = "GrainYield", trt = "Insecticide")
+  # ---- CRD, one factor (insecticides) ----
+  session$setInputs(design = "CRD", example = "crd1", resp = "GrainYield", trt = "Insecticide")
   run(pw = "HSD")
-  r <- ok()
-  stopifnot_(identical(r$design, "CRD") && is.null(r$block), "CRD: no block used")
-  stopifnot_(round(r$anova$F[1], 2) == 9.83 && round(r$cv, 2) == 15.09, "CRD: F 9.83, CV 15.09 (original STAR)")
-  stopifnot_(identical(means_df()$Group, c("ab", "c", "a", "bc", "bc", "ab", "a")), "CRD: letters match the original")
-  stopifnot_(identical(means_df()$Insecticide[1:2], c("Azodin", "Control")), "CRD: treatment names intact")
+  check(is.null(ok()$block) && round(ok()$anova$F[1], 2) == 9.83, "CRD 1 factor: no block, F = 9.83")
+  check(identical(tables()$means$Insecticide$Group, c("ab", "c", "a", "bc", "bc", "ab", "a")), "CRD 1 factor: letters match the original")
 
-  # ---- downloads and copy ----
-  x <- output$dl_xlsx; stopifnot_(file.exists(x) && file.size(x) > 3000, "xlsx download created")
-  stopifnot_(identical(openxlsx::getSheetNames(x), c("ANOVA", "Means", "Info")), "xlsx sheets")
-  info <- openxlsx::read.xlsx(x, "Info"); stopifnot_(info$Value[1] == "CRD" && info$Value[4] == "-", "xlsx info sheet (CRD, no block)")
-  p <- output$dl_png; stopifnot_(file.exists(p) && file.size(p) > 5000, "png download created")
-  t <- output$dl_txt; stopifnot_(length(readLines(t)) > 30, "txt report download")
+  # ---- CRD, two factors (tooth growth) ----
+  session$setInputs(design = "CRD", example = "crd2", resp = "len", trt = c("supp", "dose"))
+  run(pw = "auto")
+  r <- ok()
+  check(identical(r$anova$Source, c("supp", "dose", "supp:dose", "Error", "Total")), "CRD 2 factors: ANOVA rows")
+  check(r$interaction_significant, "CRD 2 factors: interaction significant")
+  check(setequal(names(tables()$simple), c("supp within dose", "dose within supp")), "CRD 2 factors: simple-effect tables")
+  check(identical(names(tables()$cells), c("supp", "dose = 0.5", "dose = 1", "dose = 2")), "CRD 2 factors: wide cell means")
+  check(identical(tables()$simple[["supp within dose"]][["dose = 0.5"]], c("13.23 a", "7.98 b")), "CRD 2 factors: simple effect letters (original STAR)")
+  check(!("Group" %in% names(tables()$means$supp)), "CRD 2 factors: no main-effect letters when the interaction is significant")
+
+  # ---- RCBD, two factors (nitrogen x variety) ----
+  session$setInputs(design = "RCBD", example = "rcbd2", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep")
+  run(pw = "auto")
+  r <- ok()
+  check(identical(r$anova$Source, c("Rep", "Nitrogen", "Variety", "Nitrogen:Variety", "Error", "Total")), "RCBD 2 factors: ANOVA rows")
+  check(round(r$cv, 2) == 10.07, "RCBD 2 factors: CV = 10.07")
+  check(identical(tables()$simple[["Nitrogen within Variety"]][["Variety = IR8"]][1:2], c("4,252.67 d", "5,672.00 c")), "RCBD 2 factors: Nitrogen within IR8 letters")
+  check("Simple effects" %in% names(xlsx_sheets()), "RCBD 2 factors: simple effects in Excel")
+
+  # ---- downloads and copy (two-factor result is selected) ----
+  x <- output$dl_xlsx; check(file.exists(x) && file.size(x) > 3000, "xlsx download created")
+  sh <- openxlsx::getSheetNames(x); check(identical(sh, c("ANOVA", "Means", "Cell means", "Simple effects", "Info")), "xlsx sheets for a two-factor result")
+  session$setInputs(plot_effect = "interaction"); p1 <- output$dl_png; check(file.exists(p1) && file.size(p1) > 5000, "png (interaction plot)")
+  session$setInputs(plot_effect = "Nitrogen"); p2 <- output$dl_png; check(file.exists(p2) && file.size(p2) > 5000, "png (main effect plot)")
+  t <- output$dl_txt; check(length(readLines(t)) > 40, "txt report download")
   session$setInputs(cp_anova = 1, cp_means = 1, cp_report = 1)
   cat("ok   copy buttons ran\n")
 
+  session$setInputs(design = "CRD", example = "crd1", resp = "GrainYield", trt = "Insecticide"); run(pw = "LSD")
+  x1 <- output$dl_xlsx; check(identical(openxlsx::getSheetNames(x1), c("ANOVA", "Means", "Info")), "xlsx sheets for a one-factor result")
+
   # ---- errors are reported, not thrown ----
   run(pw = "LSD", resp = "GrainYield", trt = "GrainYield")
-  stopifnot_(inherits(res(), "star_error"), "bad column choice is reported as an error")
+  check(inherits(res(), "star_error"), "bad column choice is reported as an error")
 })

@@ -20,13 +20,8 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
   cols <- c(response, factors, block)
   for (v in cols) if (!v %in% names(data)) stop("Column '", v, "' not found.")
   if (length(unique(cols)) < length(cols)) stop("Response, treatment factors and block must be different columns.")
-  if (!is.numeric(data[[response]])) stop("The response variable must be numeric.")
-  d <- data[, cols, drop = FALSE]
-  for (f in factors) {
-    d[[f]] <- factor(d[[f]])
-    if (nlevels(d[[f]]) < 2) stop("The factor '", f, "' needs at least two levels.")
-  }
-  if (!is.null(block)) d[[block]] <- factor(d[[block]])
+  d <- star_prepare_data(data, response, factors, block)     # coerce / clean the chosen columns, drop unusable rows
+  data_notes <- attr(d, "notes")
   counts <- table(d[, factors, drop = FALSE])
   if (any(counts == 0)) stop("Some treatment combinations have no observations; the design must be complete.")
 
@@ -35,6 +30,12 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
   if (design == "RCBD") args$rep1 <- block
   if (test != "auto") { args$pwTest <- test; args$pwVar <- response }
   report <- capture.output(res <- do.call(AOVTest, args))
+  err_line <- grep("^ERROR:", report, value = TRUE)
+  if (length(err_line) || is.null(res$aovTable) || length(res$aovTable) == 0)
+    stop(if (length(err_line)) sub("^ERROR:[[:space:]]*", "", err_line[1]) else "STAR could not fit this model",
+         if (any(is.na(d[[response]]))) paste0(" The response has ", sum(is.na(d[[response]])), " missing value(s); remove or fill them in and try again.") else "",
+         call. = FALSE)
+  if (any(grepl("estimates of the missing values", report))) data_notes <- c(data_notes, "Missing response values were estimated by STAR's missing-data procedure (RCBD); degrees of freedom are adjusted.")
   raw <- ConstructAOVTable(res$aovTable[[1]][[1]])
   anova <- data.frame(Source = trimws(rownames(raw)), DF = raw[[1]], SS = raw[[2]], MS = raw[[3]],
                       F = raw[[4]], P = raw[[5]], row.names = NULL, stringsAsFactors = FALSE)
@@ -101,13 +102,16 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
     }
   }
 
+  diagnostics <- tryCatch(star_diagnostics(data, response, factors, block, alpha), error = function(e) NULL)
+
   summary_text <- .star_aov_summary(anova, effects, means, factors, response, interaction_sig, tests_used, alpha, cv)
 
   structure(list(anova = anova, effects = effects, means = means, cells = cells, simple = simple,
                  grand_mean = grand_mean, cv = cv, test = test, tests_used = tests_used,
                  alpha = alpha, design = design, response = response, treatment = factors[1], factors = factors,
                  block = block, p_treatment = effects$P[1], significant = effects$Significant[1],
-                 interaction_significant = interaction_sig, summary = summary_text, report = report),
+                 interaction_significant = interaction_sig, summary = summary_text, report = report,
+                 data_notes = data_notes, diagnostics = diagnostics),
             class = "star_aov")
 }
 

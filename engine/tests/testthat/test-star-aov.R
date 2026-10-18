@@ -118,7 +118,7 @@ test_that("every mean-comparison choice works and 'auto' follows STAR's rule", {
 test_that("bad input gives clear errors", {
   expect_error(star_aov(rcbd, "Nope", "Nitrogen", "Rep", design = "RCBD"), "not found")
   expect_error(star_aov(rcbd, "Yield", "Yield", "Rep", design = "RCBD"), "different columns")
-  expect_error(star_aov(rcbd, "Nitrogen", "Rep", "Yield", design = "RCBD"), "numeric")
+  expect_error(star_aov(data.frame(r = rep(1:3, 6), g = rep(c("a", "b"), each = 9), y = letters[1:18]), "y", "g"), "no numbers")
   expect_error(star_aov(rcbd, "Yield", "Nitrogen", design = "RCBD"), "needs a block")
   expect_error(star_aov(data.frame(y = 1:4, g = "a"), "y", "g"), "at least two levels")
   expect_error(star_aov(tg, "len", c("supp", "dose", "len")), "different columns|Only one or two")
@@ -134,4 +134,76 @@ test_that("plots run without error", {
   expect_silent(star_plot_means(two, "interaction"))
   expect_error(star_plot_means(two, "nope"), "Unknown effect")
   dev.off(); unlink(f)
+})
+
+# ---- messy input data -------------------------------------------------------------------------------------------
+test_that("star_parse_number reads common messy number formats", {
+  x <- c("12.5", " 1,250.5 ", "1.250,5", "12,5", "1,250", "12 kg", "45%", "n/a", "", "-", "abc", "-3.2")
+  expect_equal(star_parse_number(x), c(12.5, 1250.5, 1250.5, 12.5, 1250, 12, 45, NA, NA, NA, NA, -3.2))
+  expect_equal(star_parse_number(c(1, 2)), c(1, 2))
+})
+
+test_that("star_aov repairs a messy data set and reports what it did", {
+  m <- rcbd
+  m$Yield <- as.character(m$Yield)
+  m$Yield[3] <- "n/a"; m$Yield[5] <- paste0(m$Yield[5], " kg")
+  m$Nitrogen <- as.character(m$Nitrogen); m$Nitrogen[2] <- paste0(" ", m$Nitrogen[2], "  ")
+  r <- star_aov(m, "Yield", "Nitrogen", "Rep", design = "RCBD", test = "LSD")
+  expect_s3_class(r, "star_aov")
+  expect_true(any(grepl("read as numbers", r$data_notes)))
+  expect_true(any(grepl("extra spaces", r$data_notes)))
+  expect_true(any(grepl("missing", r$data_notes)))
+  c2 <- data.frame(g = rep(c("a", "b", ""), each = 4), y = c(1, 2, 3, 4, 3, 4, 5, 7, 9, 9, 9, 9))
+  r2 <- star_aov(c2, "y", "g")                          # rows without a treatment label are removed
+  expect_true(any(grepl("removed", r2$data_notes)))
+  expect_equal(sum(r2$means$g$N), 8)
+  m$Yield[7] <- "oops"                                  # two missing responses: STAR cannot estimate them
+  expect_error(star_aov(m, "Yield", "Nitrogen", "Rep", design = "RCBD"), "Too many missing")
+})
+
+test_that("star_aov refuses columns that cannot be analysed, with a clear reason", {
+  d <- data.frame(g = rep(c("a", "b"), each = 6), id = paste0("s", 1:12), y = c(1:6, 3:8) + rep(c(0, .1), 6))
+  expect_error(star_aov(transform(d, y = rep("text", 12)), "y", "g"), "no numbers")
+  expect_error(star_aov(transform(d, y = c(rep("x", 8), "1", "2", "3", "4")), "y", "g"), "mostly text")
+  expect_error(star_aov(transform(d, y = 5), "y", "g"), "constant")
+  expect_error(star_aov(d, "y", "id"), "different level on every row")
+  expect_error(star_aov(transform(d, g = "a"), "y", "g"), "at least two levels")
+  expect_error(star_aov(transform(d, g = NA_character_), "y", "g"), "No rows")
+})
+
+test_that("a numeric treatment or block column is treated as a factor and sorted numerically", {
+  d <- data.frame(dose = rep(c(10, 2, 5), each = 4), y = c(1, 2, 1.5, 2.2, 5, 6, 5.5, 6.2, 9, 8, 9.5, 8.7))
+  r <- star_aov(d, "y", "dose")
+  expect_equal(r$means$dose$Treatment, c("2", "5", "10"))
+})
+
+test_that("star_read_table detects delimiter, encoding and reads xlsx as text", {
+  w <- function(txt, enc = "UTF-8") { f <- tempfile(fileext = ".csv"); writeBin(iconv(txt, "UTF-8", enc, toRaw = TRUE)[[1]], f); f }
+  d1 <- star_read_table(w("g;y\na;1,5\nb;2,5\n"), "a.csv")
+  expect_equal(names(d1), c("g", "y")); expect_equal(d1$y, c("1,5", "2,5"))
+  d2 <- star_read_table(w("t,y\ncafé,1\nb,2\n", "latin1"), "a.csv")
+  expect_equal(d2$t[1], "café")
+  skip_if_not_installed("openxlsx")
+  f <- tempfile(fileext = ".xlsx"); openxlsx::write.xlsx(data.frame(g = c("a", "b"), y = c(1.5, 2.5)), f)
+  expect_equal(star_read_table(f, "a.xlsx")$y, c("1.5", "2.5"))
+  expect_error(star_read_table(w("only\n1\n"), "a.csv"), "at least two columns")
+})
+
+test_that("diagnostics: outliers are found (row 5 of Insecticides is borderline, a x6 value is clear), a clean set is not flagged", {
+  clean <- star_aov(rcbd, "Yield", "Nitrogen", "Rep", design = "RCBD")$diagnostics
+  expect_s3_class(clean, "star_diagnostics")
+  expect_equal(clean$n_outliers, 0)
+  bad <- Insecticides; bad$GrainYield[5] <- bad$GrainYield[5] * 6
+  dg <- star_aov(bad, "GrainYield", "Insecticide", design = "CRD")$diagnostics
+  expect_gte(dg$n_outliers, 1)
+  expect_equal(dg$outliers$Row[1], "5")
+  expect_false(dg$ok)
+  expect_match(dg$messages[1], "outlier")
+})
+
+test_that("diagnostics: work for two factors with blocks and report variance heterogeneity", {
+  dg <- star_aov(tg, "len", c("supp", "dose"), design = "CRD")$diagnostics
+  expect_true(is.finite(dg$normality$p)); expect_true(is.finite(dg$homogeneity$p))
+  het <- rcbd; het$Yield[het$Nitrogen == levels(het$Nitrogen)[1]] <- het$Yield[het$Nitrogen == levels(het$Nitrogen)[1]] * c(1, 3, 0.2)
+  expect_s3_class(star_diagnostics(het, "Yield", "Nitrogen", "Rep"), "star_diagnostics")
 })

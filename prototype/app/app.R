@@ -82,7 +82,7 @@ ui <- fluidPage(
       radioButtons("design", "Experimental design", c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD")),
       radioButtons("src", "Data", c("Built-in example" = "ex", "Upload CSV" = "up")),
       conditionalPanel("input.src == 'ex'", uiOutput("example_picker")),
-      conditionalPanel("input.src == 'up'", fileInput("file", "CSV file", accept = ".csv")),
+      conditionalPanel("input.src == 'up'", fileInput("file", "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))),
       uiOutput("var_pickers"),
       selectInput("pw", "Mean comparison (letters shown when the effect is significant)",
                   c("Automatic: LSD if <= 5 levels, else Tukey" = "auto", "LSD" = "LSD", "Tukey HSD" = "HSD",
@@ -96,6 +96,7 @@ ui <- fluidPage(
         tabPanel("Results", br(), uiOutput("results_ui"), br(), downloadButton("dl_xlsx", "Download Excel (.xlsx)")),
         tabPanel("Plot", br(), uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"),
                  downloadButton("dl_png", "Download PNG")),
+        tabPanel("Outliers & assumptions", br(), uiOutput("diag_ui"), plotOutput("diag_plot", height = "380px")),
         tabPanel("Classic STAR report", br(),
                  actionButton("cp_report", "Copy report"), downloadButton("dl_txt", "Download TXT"),
                  verbatimTextOutput("report"))
@@ -111,7 +112,10 @@ server <- function(input, output, session) {
 
   dat <- reactive({
     if (input$src == "ex") { s <- setup(); req(s); return(read.csv(s$file)) }
-    req(input$file); read.csv(input$file$datapath)
+    req(input$file)
+    # every column is read as text so that the engine can check and convert it (decimal commas, units, "n/a", ...)
+    tryCatch(star_read_table(input$file$datapath, input$file$name),
+             error = function(e) { showNotification(paste("Could not read the file:", conditionMessage(e)), type = "error"); req(FALSE) })
   })
   output$var_pickers <- renderUI({
     nm <- names(dat()); s <- setup()
@@ -148,6 +152,8 @@ server <- function(input, output, session) {
   output$results_ui <- renderUI({
     r <- ok(); tb <- tables()
     tagList(
+      if (length(r$data_notes)) div(class = "alert alert-warning", strong("Data checks"),
+                                    tags$ul(lapply(r$data_notes, tags$li))),
       div(class = if (r$significant || r$interaction_significant) "alert alert-success" else "alert alert-info", r$summary),
       h4("Analysis of variance"), actionButton("cp_anova", "Copy table"), html_table(tb$anova),
       lapply(names(tb$means), function(f) tagList(h4(paste("Means of", f)), html_table(tb$means[[f]]))),
@@ -169,6 +175,18 @@ server <- function(input, output, session) {
   })
   plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, "interaction"))) r$factors[1] else pe })
   output$means_plot <- renderPlot(star_plot_means(ok(), plot_effect()))
+  output$diag_ui <- renderUI({
+    dg <- ok()$diagnostics
+    if (is.null(dg)) return(div(class = "alert alert-warning", "Assumption checks could not be computed for this data."))
+    tagList(
+      div(class = if (dg$ok) "alert alert-success" else "alert alert-warning", tags$ul(lapply(dg$messages, tags$li))),
+      if (nrow(dg$outliers)) {
+        o <- dg$outliers
+        o[] <- lapply(o, function(v) if (is.numeric(v)) fmt_n(v, 3) else as.character(v))
+        tagList(h4("Flagged observations"), p(class = "text-muted", "Row = row number in your data. |Studentized residual| > 3 = outlier, 2 to 3 = suspect."), html_table(o))
+      })
+  })
+  output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); star_plot_diagnostics(dg) })
   output$report <- renderText(paste(ok()$report, collapse = "\n"))
 
   xlsx_sheets <- reactive({
@@ -179,10 +197,11 @@ server <- function(input, output, session) {
     if (length(r$simple)) sheets$`Simple effects` <- do.call(rbind, lapply(names(r$simple), function(nm) {
       sm <- r$simple[[nm]]; data.frame(Comparison = nm, setNames(sm[c(attr(sm, "at"), attr(sm, "compare"), "Mean", "N", "SE", "Group")], c("At level", "Level", "Mean", "N", "SE", "Group")), row.names = NULL)
     }))
-    sheets$Info <- data.frame(Item = c("Design", "Response", "Treatment factor(s)", "Block", "Mean comparison", "Alpha", "Grand mean", "CV (%)", "Summary"),
+    sheets$Info <- data.frame(Item = c("Design", "Response", "Treatment factor(s)", "Block", "Mean comparison", "Alpha", "Grand mean", "CV (%)", "Summary", "Data checks"),
                               Value = c(r$design, r$response, paste(r$factors, collapse = ", "), if (is.null(r$block)) "-" else r$block,
                                         if (r$test == "auto") "auto (LSD if <= 5 levels, else HSD)" else r$test, r$alpha,
-                                        round(r$grand_mean, 4), round(r$cv, 2), r$summary))
+                                        round(r$grand_mean, 4), round(r$cv, 2), r$summary,
+                                        if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none"))
     sheets
   })
   output$dl_xlsx <- downloadHandler("star_anova.xlsx", function(file) openxlsx::write.xlsx(xlsx_sheets(), file))

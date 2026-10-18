@@ -12,8 +12,23 @@ run_quiet <- function(expr) {
   list(text = out, value = val, error = err)
 }
 
+copy_js <- "
+Shiny.addCustomMessageHandler('copy_text', function(msg) {
+  var done = function(ok) { Shiny.setInputValue('copy_status', {ok: ok, what: msg.what, t: Date.now()}); };
+  var fallback = function() {
+    var ta = document.createElement('textarea'); ta.value = msg.text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta); done(ok);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(msg.text).then(function() { done(true); }, fallback);
+  } else { fallback(); }
+});"
+
 ui <- navbarPage(
   "STAR (prototype): agricultural experiments in the browser",
+  header = tags$head(tags$script(HTML(copy_js))),
   tabPanel("1. Randomise RCBD",
     sidebarLayout(
       sidebarPanel(
@@ -21,12 +36,16 @@ ui <- navbarPage(
         numericInput("reps", "Replications (blocks)", 3, min = 2, max = 20),
         numericInput("seed", "Random seed (blank = random)", NA),
         actionButton("go_rand", "Randomise", class = "btn-primary"),
-        downloadButton("dl_book", "Download field book (CSV)")
+        helpText("Output can be copied (paste into Excel) or downloaded.")
       ),
       mainPanel(
         uiOutput("rand_msg"),
-        h4("Field book"), tableOutput("book"),
-        h4("Layout"), verbatimTextOutput("layout")
+        h4("Field book"),
+        actionButton("cp_book", "Copy table"), downloadButton("dl_book2", "Download CSV"),
+        tableOutput("book"),
+        h4("Layout"),
+        actionButton("cp_layout", "Copy layout"), downloadButton("dl_layout", "Download TXT"),
+        verbatimTextOutput("layout")
       )
     )
   ),
@@ -41,6 +60,7 @@ ui <- navbarPage(
       ),
       mainPanel(
         uiOutput("aov_msg"),
+        actionButton("cp_aov", "Copy output"), downloadButton("dl_aov", "Download TXT"),
         verbatimTextOutput("aov_out")
       )
     )
@@ -59,8 +79,20 @@ server <- function(input, output, session) {
   output$rand_msg <- renderUI({ r <- rand(); if (!is.null(r$error)) div(class = "alert alert-danger", r$error) })
   output$book <- renderTable({ r <- rand(); req(is.null(r$error)); r$book })
   output$layout <- renderPrint({ r <- rand(); req(is.null(r$error)); print(r$layout[[1]], quote = FALSE) })
-  output$dl_book <- downloadHandler("rcbd_fieldbook.csv", function(file) {
+  layout_text <- reactive({ r <- rand(); req(is.null(r$error)); paste(capture.output(print(r$layout[[1]], quote = FALSE)), collapse = "
+") })
+  book_tsv <- reactive({ r <- rand(); req(is.null(r$error)); paste(capture.output(write.table(r$book, sep = "	", quote = FALSE, row.names = FALSE)), collapse = "
+") })
+  output$dl_book2 <- downloadHandler("rcbd_fieldbook.csv", function(file) {
     r <- rand(); req(is.null(r$error)); write.csv(r$book, file, row.names = FALSE)
+  })
+  output$dl_layout <- downloadHandler("rcbd_layout.txt", function(file) writeLines(layout_text(), file))
+  observeEvent(input$cp_book, session$sendCustomMessage("copy_text", list(what = "Field book", text = book_tsv())))
+  observeEvent(input$cp_layout, session$sendCustomMessage("copy_text", list(what = "Layout", text = layout_text())))
+  observeEvent(input$copy_status, {
+    st <- input$copy_status
+    showNotification(if (isTRUE(st$ok)) paste(st$what, "copied to clipboard") else "Copy failed: select the text and copy manually",
+                     type = if (isTRUE(st$ok)) "message" else "error", duration = 3)
   })
 
   dat <- reactive({
@@ -87,7 +119,10 @@ server <- function(input, output, session) {
     list(text = res$text)
   })
   output$aov_msg <- renderUI({ r <- aov_res(); if (!is.null(r$error)) div(class = "alert alert-danger", r$error) })
-  output$aov_out <- renderText({ r <- aov_res(); req(is.null(r$error)); paste(r$text, collapse = "\n") })
+  aov_text <- reactive({ r <- aov_res(); req(is.null(r$error)); paste(r$text, collapse = "\n") })
+  output$aov_out <- renderText(aov_text())
+  output$dl_aov <- downloadHandler("star_anova_rcbd.txt", function(file) writeLines(aov_text(), file))
+  observeEvent(input$cp_aov, session$sendCustomMessage("copy_text", list(what = "ANOVA output", text = aov_text())))
 }
 
 shinyApp(ui, server)

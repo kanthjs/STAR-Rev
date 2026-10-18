@@ -40,6 +40,10 @@ star_diagnostics <- function(data, response, treatment, block = NULL, alpha = 0.
     sw <- stats::shapiro.test(res)
     list(test = "Shapiro-Wilk", statistic = unname(sw$statistic), p = sw$p.value, ok = sw$p.value >= alpha)
   } else list(test = "Shapiro-Wilk", statistic = NA_real_, p = NA_real_, ok = NA)
+  ks <- if (n >= 5 && diff(range(res)) > 0) {      # Kolmogorov-Smirnov with Lilliefors correction (mean and SD estimated)
+    p <- tryCatch(lillie.test(res)$p.value, error = function(e) NA_real_)
+    list(test = "Kolmogorov-Smirnov (Lilliefors)", statistic = tryCatch(unname(lillie.test(res)$statistic), error = function(e) NA_real_), p = p, ok = p >= alpha)
+  } else list(test = "Kolmogorov-Smirnov (Lilliefors)", statistic = NA_real_, p = NA_real_, ok = NA)
 
   # ---- homogeneity of variances (Levene, median-centred) ----
   cell <- interaction(d[, treatment, drop = FALSE], drop = TRUE)
@@ -68,6 +72,7 @@ star_diagnostics <- function(data, response, treatment, block = NULL, alpha = 0.
   hi_cook <- which(!is.na(cook) & cook > 4 / n)
   if (length(hi_cook) && n_out == 0 && n_sus == 0)
     msg <- c(msg, sprintf("%d observation(s) have a large Cook's distance (> 4/n) but are not outliers; they influence the fit more than most.", length(hi_cook)))
+  if (!is.na(ks$p)) msg <- c(msg, sprintf("Kolmogorov-Smirnov (Lilliefors) on residuals: D = %.3f, p %s.", ks$statistic, .star_fmt_p(ks$p)))
   if (isTRUE(normality$ok)) msg <- c(msg, sprintf("Residuals are consistent with a normal distribution (Shapiro-Wilk p %s).", .star_fmt_p(normality$p)))
   else if (isFALSE(normality$ok)) msg <- c(msg, sprintf("Residuals depart from normality (Shapiro-Wilk p %s)%s. Consider a transformation (log, square root) or a non-parametric test.",
                                                         .star_fmt_p(normality$p), if (n_out > 0) "; this may be caused by the outlier(s)" else ""))
@@ -77,8 +82,8 @@ star_diagnostics <- function(data, response, treatment, block = NULL, alpha = 0.
                                                           if (is.finite(homogeneity$ratio)) sprintf("; largest/smallest variance = %.1f", homogeneity$ratio) else ""))
   if (is.na(normality$ok) || is.na(homogeneity$ok)) msg <- c(msg, "Some assumption tests could not be computed (too few observations per treatment).")
 
-  structure(list(outliers = outliers, n_outliers = n_out, n_suspect = n_sus, normality = normality,
-                 homogeneity = homogeneity, messages = msg, ok = n_out == 0 && !isFALSE(normality$ok) && !isFALSE(homogeneity$ok),
+  structure(list(outliers = outliers, n_outliers = n_out, n_suspect = n_sus, normality = normality, ks = ks,
+                 homogeneity = homogeneity, messages = msg, ok = n_out == 0 && !isFALSE(normality$ok) && !isFALSE(ks$ok) && !isFALSE(homogeneity$ok),
                  residuals = data.frame(Row = rn, Fitted = fitted, Residual = res, Studentized = sres, Flag = flag, stringsAsFactors = FALSE),
                  response = response, alpha = alpha, outlier_cut = outlier_cut, suspect_cut = suspect_cut),
             class = "star_diagnostics")

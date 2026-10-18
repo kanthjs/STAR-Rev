@@ -86,7 +86,7 @@ ui <- fluidPage(
       uiOutput("var_pickers"),
       selectInput("pw", "Mean comparison (letters shown when the effect is significant)",
                   c("Automatic: LSD if <= 5 levels, else Tukey" = "auto", "LSD" = "LSD", "Tukey HSD" = "HSD",
-                    "Duncan" = "duncan", "SNK" = "SNK", "Scheffe" = "scheffe")),
+                    "Duncan" = "duncan", "SNK" = "SNK", "Scheffe" = "scheffe", "Bonferroni" = "bonferroni")),
       selectInput("alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
       actionButton("go_aov", "Run ANOVA", class = "btn-primary")
     ),
@@ -155,6 +155,7 @@ server <- function(input, output, session) {
       if (length(r$data_notes)) div(class = "alert alert-warning", strong("Data checks"),
                                     tags$ul(lapply(r$data_notes, tags$li))),
       div(class = if (r$significant || r$interaction_significant) "alert alert-success" else "alert alert-info", r$summary),
+      h4("APA-style report"), actionButton("cp_apa", "Copy"), div(class = "well well-sm", lapply(r$apa, p)),
       h4("Analysis of variance"), actionButton("cp_anova", "Copy table"), html_table(tb$anova),
       lapply(names(tb$means), function(f) tagList(h4(paste("Means of", f)), html_table(tb$means[[f]]))),
       actionButton("cp_means", "Copy means tables"),
@@ -215,6 +216,7 @@ server <- function(input, output, session) {
     c(unlist(lapply(names(tables()$means), function(f) c(paste("Means of", f), tsv(tables()$means[[f]]), ""))),
       if (!is.null(tables()$cells)) c("Cell means", tsv(tables()$cells), ""),
       unlist(lapply(names(tables()$simple), function(nm) c(nm, tsv(tables()$simple[[nm]]), "")))), collapse = "\n"))))
+  observeEvent(input$cp_apa, session$sendCustomMessage("copy_text", list(what = "APA text", text = paste(ok()$apa, collapse = " "))))
   observeEvent(input$cp_report, session$sendCustomMessage("copy_text", list(what = "Report", text = paste(ok()$report, collapse = "\n"))))
   observeEvent(input$copy_status, {
     st <- input$copy_status

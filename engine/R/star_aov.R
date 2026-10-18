@@ -8,7 +8,7 @@
 ## each level of the other); otherwise the significant main effects are compared.
 
 star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", "RCBD"),
-                     test = c("auto", "LSD", "HSD", "duncan", "SNK", "scheffe"), alpha = 0.05) {
+                     test = c("auto", "LSD", "HSD", "duncan", "SNK", "scheffe", "bonferroni"), alpha = 0.05) {
   design <- match.arg(design)
   test <- match.arg(test)
   factors <- treatment
@@ -28,7 +28,7 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
   # Let STAR choose the test per effect (LSD if <= 5 levels, else Tukey) unless the user picked one
   args <- list(data = d, design = design, respvar = response, factor1 = factors, sig = alpha)
   if (design == "RCBD") args$rep1 <- block
-  if (test != "auto") { args$pwTest <- test; args$pwVar <- response }
+  if (!test %in% c("auto", "bonferroni")) { args$pwTest <- test; args$pwVar <- response }
   report <- capture.output(res <- do.call(AOVTest, args))
   err_line <- grep("^ERROR:", report, value = TRUE)
   if (length(err_line) || is.null(res$aovTable) || length(res$aovTable) == 0)
@@ -45,6 +45,8 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
   effects <- anova[match(effect_names, anova$Source), c("Source", "DF", "F", "P")]
   names(effects)[1] <- "Effect"
   effects$Significant <- !is.na(effects$P) & effects$P < alpha
+  ss_err <- err$SS
+  effects$PartialEta2 <- anova$SS[match(effects$Effect, anova$Source)] / (anova$SS[match(effects$Effect, anova$Source)] + ss_err)
   rownames(effects) <- NULL
 
   y <- d[[response]]
@@ -54,7 +56,8 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
 
   test_for <- function(f) if (test == "auto") (if (nlevels(d[[f]]) <= 5) "LSD" else "HSD") else test
   compare <- function(yy, tr, tst) {   # one STAR mean-separation test on a set of observations
-    invisible(capture.output(cmp <- get(paste0(tst, ".test"), mode = "function")(yy, tr, err$DF, err$MS, alpha)))
+    invisible(capture.output(cmp <- if (tst == "bonferroni") LSD.test(yy, tr, err$DF, err$MS, alpha, p.adj = "bonferroni")
+                                    else get(paste0(tst, ".test"), mode = "function")(yy, tr, err$DF, err$MS, alpha)))
     s <- cmp$summary
     out <- data.frame(Treatment = trimws(as.character(s[[1]])), Mean = s$means, N = s$N, SE = s$std.err,
                       Group = trimws(as.character(s$group)), stringsAsFactors = FALSE)
@@ -106,11 +109,13 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
 
   summary_text <- .star_aov_summary(anova, effects, means, factors, response, interaction_sig, tests_used, alpha, cv)
 
+  apa <- .star_apa(effects, err, response)
+
   structure(list(anova = anova, effects = effects, means = means, cells = cells, simple = simple,
                  grand_mean = grand_mean, cv = cv, test = test, tests_used = tests_used,
                  alpha = alpha, design = design, response = response, treatment = factors[1], factors = factors,
                  block = block, p_treatment = effects$P[1], significant = effects$Significant[1],
-                 interaction_significant = interaction_sig, summary = summary_text, report = report,
+                 interaction_significant = interaction_sig, summary = summary_text, apa = apa, report = report,
                  data_notes = data_notes, diagnostics = diagnostics),
             class = "star_aov")
 }
@@ -148,9 +153,21 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
   }
 }
 
+## APA-style sentences: F(df1, df2) = x, p = .xxx, partial eta squared = .xx (no leading zero, as APA requires)
+.star_apa <- function(effects, err, response) {
+  nz <- function(x, d) sub("^(-?)0\\.", "\\1.", formatC(x, format = "f", digits = d))
+  vapply(seq_len(nrow(effects)), function(i) {
+    e <- effects[i, ]
+    p <- if (is.na(e$P)) "p = NA" else if (e$P < 0.001) "p < .001" else paste("p =", nz(e$P, 3))
+    lab <- if (grepl(":", e$Effect)) paste("The", sub(":", " x ", e$Effect), "interaction") else paste("The main effect of", e$Effect)
+    sprintf("%s on %s was %s, F(%d, %d) = %.2f, %s, partial eta squared = %s.", lab, response,
+            if (isTRUE(e$Significant)) "significant" else "not significant", e$DF, err$DF, e$F, p, nz(e$PartialEta2, 2))
+  }, "")
+}
+
 ## Kept for the RCBD-only API used earlier.
 star_aov_rcbd <- function(data, response, treatment, block,
-                          test = c("auto", "LSD", "HSD", "duncan", "SNK", "scheffe"), alpha = 0.05) {
+                          test = c("auto", "LSD", "HSD", "duncan", "SNK", "scheffe", "bonferroni"), alpha = 0.05) {
   star_aov(data, response, treatment, block, design = "RCBD", test = match.arg(test), alpha = alpha)
 }
 

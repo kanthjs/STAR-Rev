@@ -174,7 +174,7 @@ server <- function(input, output, session) {
     ch <- c(setNames(r$factors, paste("Means of", r$factors)), if (!is.null(r$cells)) c("Interaction (grouped bars)" = "interaction"))
     if (length(ch) > 1) selectInput("plot_effect", "Plot", ch, selected = if (r$interaction_significant) "interaction" else r$factors[1])
   })
-  plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, "interaction"))) r$factors[1] else pe })
+  plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, if (!is.null(r$cells)) "interaction"))) r$factors[1] else pe })
   output$means_plot <- renderPlot(star_plot_means(ok(), plot_effect()))
   output$diag_ui <- renderUI({
     dg <- ok()$diagnostics

@@ -219,3 +219,45 @@ test_that("Bonferroni letters, partial eta squared, APA text and the Lilliefors 
   expect_match(r$apa[1], "^The main effect of Insecticide on GrainYield was significant, F\\(6, 21\\) = 9\\.83, p < \\.001, partial eta squared = \\.74\\.$")
   expect_true(is.finite(r$diagnostics$ks$p))
 })
+
+# ---- ggplot2 versions of the plots ------------------------------------------------------------------------------
+test_that("ggplot2 mean plots build for every effect, error type and layout", {
+  skip_if_not_installed("ggplot2")
+  one <- star_aov(Insecticides, "GrainYield", "Insecticide", design = "CRD")
+  two <- star_aov(GomezSplitRCBD, "Yield", c("Nitrogen", "Variety"), "Rep", design = "RCBD")
+  expect_s3_class(star_ggplot_means(one), "ggplot")
+  expect_s3_class(star_ggplot_means(one, data = Insecticides), "ggplot")        # observations added
+  for (er in c("se", "sd", "ci")) expect_s3_class(star_ggplot_means(two, "Nitrogen", data = GomezSplitRCBD, error = er), "ggplot")
+  for (ef in c("interaction", "interaction_line")) {
+    expect_s3_class(star_ggplot_means(two, ef), "ggplot")
+    expect_s3_class(star_ggplot_means(two, ef, data = GomezSplitRCBD), "ggplot")
+  }
+  expect_error(star_ggplot_means(two, "nope"), "Unknown effect")
+  expect_error(star_ggplot_means(one, "interaction"), "two-factor")
+  expect_error(star_ggplot_means(one, points = TRUE), "needs the 'data'")
+  f <- tempfile(fileext = ".png"); png(f)
+  for (p in list(star_ggplot_means(one, data = Insecticides), star_ggplot_means(two, "interaction", data = GomezSplitRCBD),
+                 star_ggplot_means(two, "interaction_line"), star_ggplot_diagnostics(one))) expect_no_error(print(p))
+  dev.off(); unlink(f)
+})
+
+test_that("SD and CI error bars follow from SE and N", {
+  skip_if_not_installed("ggplot2")
+  one <- star_aov(Insecticides, "GrainYield", "Insecticide", design = "CRD")
+  m <- one$means$Insecticide
+  d <- ggplot2::ggplot_build(star_ggplot_means(one, error = "sd"))$data
+  expect_equal(d[[2]]$ymax, m$Mean + m$SE * sqrt(m$N))        # layer 2 = error bars
+  ci <- ggplot2::ggplot_build(star_ggplot_means(one, error = "ci"))$data[[2]]
+  expect_equal(ci$ymax, m$Mean + qt(0.975, m$N - 1) * m$SE)
+})
+
+test_that("star_ggsave writes png, svg and pdf", {
+  skip_if_not_installed("ggplot2")
+  one <- star_aov(Insecticides, "GrainYield", "Insecticide", design = "CRD")
+  p <- star_ggplot_means(one)
+  for (ext in c("png", "svg", "pdf")) {
+    f <- tempfile(fileext = paste0(".", ext)); star_ggsave(p, f, dpi = 100)
+    expect_gt(file.size(f), 500); unlink(f)
+  }
+  expect_error(star_ggsave(p, tempfile(fileext = ".bmp")), "png, .svg or .pdf")
+})

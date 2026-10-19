@@ -5,6 +5,7 @@ library(shiny)
 for (f in sort(list.files("star", pattern = "[.]R$", full.names = TRUE))) source(f, local = FALSE)
 
 # ---- helpers ---------------------------------------------------------------------------------------------------
+`%||%` <- function(a, b) if (is.null(a)) b else a
 fmt_p <- function(p) ifelse(is.na(p), "", ifelse(p < 0.0001, "<0.0001", formatC(p, format = "f", digits = 4)))
 fmt_n <- function(x, digits = 2) ifelse(is.na(x), "", formatC(x, format = "f", digits = digits, big.mark = ","))
 
@@ -97,8 +98,15 @@ ui <- fluidPage(
       uiOutput("aov_msg"),
       tabsetPanel(
         tabPanel("Results", br(), uiOutput("results_ui"), br(), downloadButton("dl_xlsx", "Download Excel (.xlsx)")),
-        tabPanel("Plot", br(), uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"),
-                 downloadButton("dl_png", "Download PNG")),
+        tabPanel("Plot", br(),
+                 fluidRow(column(4, radioButtons("plot_style", "Style", c("Classic" = "classic", "ggplot2" = "gg"), inline = TRUE)),
+                          column(8, conditionalPanel("input.plot_style == 'gg'", fluidRow(
+                            column(6, selectInput("gg_error", "Error bars", c("SE" = "se", "SD" = "sd", "95% CI" = "ci"))),
+                            column(6, br(), checkboxInput("gg_points", "Show observations", TRUE)))))),
+                 uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"),
+                 fluidRow(column(4, selectInput("dl_fmt", "File type", c("PNG" = "png", "SVG" = "svg", "PDF" = "pdf"))),
+                          column(4, conditionalPanel("input.dl_fmt == 'png'", selectInput("dl_dpi", "Resolution", c("Screen (120 dpi)" = 120, "Print (300 dpi)" = 300, "High (600 dpi)" = 600), selected = 300))),
+                          column(4, br(), downloadButton("dl_png", "Download plot")))),
         tabPanel("Outliers & assumptions", br(), uiOutput("diag_ui"), plotOutput("diag_plot", height = "380px")),
         tabPanel("Classic STAR report", br(),
                  actionButton("cp_report", "Copy report"), downloadButton("dl_txt", "Download TXT"),
@@ -146,6 +154,7 @@ server <- function(input, output, session) {
              error = function(e) structure(list(message = conditionMessage(e)), class = "star_error"))
   })
   ok <- reactive({ r <- res(); req(!inherits(r, "star_error")); r })
+  used_data <- eventReactive(input$go_aov, dat())     # the data behind the current results (for plotting observations)
   output$aov_msg <- renderUI({ r <- res(); if (inherits(r, "star_error")) div(class = "alert alert-danger", r$message) })
 
   # tables prepared once so that the screen, the clipboard and the Excel file agree
@@ -183,11 +192,17 @@ server <- function(input, output, session) {
 
   output$plot_picker <- renderUI({
     r <- ok()
-    ch <- c(setNames(r$factors, paste("Means of", r$factors)), if (!is.null(r$cells)) c("Interaction (grouped bars)" = "interaction"))
+    ch <- c(setNames(r$factors, paste("Means of", r$factors)), if (!is.null(r$cells)) c("Interaction (grouped bars)" = "interaction", c("Interaction (lines; ggplot2 style)" = "interaction_line")))
     if (length(ch) > 1) selectInput("plot_effect", "Plot", ch, selected = if (r$interaction_significant) "interaction" else r$factors[1])
   })
-  plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, if (!is.null(r$cells)) "interaction"))) r$factors[1] else pe })
-  output$means_plot <- renderPlot(star_plot_means(ok(), plot_effect()))
+  plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, if (!is.null(r$cells)) c("interaction", "interaction_line")))) r$factors[1] else pe })
+  use_gg <- reactive(identical(input$plot_style, "gg"))
+  # the ggplot2 figure (a ggplot object); the classic style is drawn with base graphics instead
+  gg_means <- reactive(star_ggplot_means(ok(), plot_effect(), data = if (isTRUE(input$gg_points)) used_data(), error = input$gg_error %||% "se"))
+  draw_means <- function() {
+    if (use_gg()) print(gg_means()) else star_plot_means(ok(), sub("_line$", "", plot_effect()))
+  }
+  output$means_plot <- renderPlot(draw_means())
   output$diag_ui <- renderUI({
     dg <- ok()$diagnostics
     if (is.null(dg)) return(div(class = "alert alert-warning", if (identical(ok()$design, "SplitRCBD")) "Assumption checks are not available for split-plot designs yet." else "Assumption checks could not be computed for this data."))
@@ -199,7 +214,7 @@ server <- function(input, output, session) {
         tagList(h4("Flagged observations"), p(class = "text-muted", "Row = row number in your data. |Studentized residual| > 3 = outlier, 2 to 3 = suspect."), html_table(o))
       })
   })
-  output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); star_plot_diagnostics(dg) })
+  output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); if (use_gg()) print(star_ggplot_diagnostics(dg)) else star_plot_diagnostics(dg) })
   output$report <- renderText(paste(ok()$report, collapse = "\n"))
 
   xlsx_sheets <- reactive({
@@ -219,8 +234,12 @@ server <- function(input, output, session) {
     sheets
   })
   output$dl_xlsx <- downloadHandler("star_anova.xlsx", function(file) openxlsx::write.xlsx(xlsx_sheets(), file))
-  output$dl_png <- downloadHandler("star_means_plot.png", function(file) {
-    png(file, width = 1000, height = 700, res = 120); star_plot_means(ok(), plot_effect()); dev.off()
+  output$dl_png <- downloadHandler(function() paste0("star_means_plot.", input$dl_fmt), function(file) {
+    fmt <- input$dl_fmt; dpi <- as.numeric(input$dl_dpi %||% 300)
+    if (use_gg()) { star_ggsave(gg_means(), file, width = 8, height = 5.6, dpi = dpi); return(invisible()) }
+    if (fmt == "png") png(file, width = 8 * dpi, height = 5.6 * dpi, res = dpi)
+    else if (fmt == "svg") svg(file, width = 8, height = 5.6) else pdf(file, width = 8, height = 5.6)
+    on.exit(dev.off()); star_plot_means(ok(), sub("_line$", "", plot_effect()))
   })
   output$dl_txt <- downloadHandler("star_anova_report.txt", function(file) writeLines(ok()$report, file))
 

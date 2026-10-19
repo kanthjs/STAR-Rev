@@ -1,0 +1,185 @@
+## New API (not part of the original STAR): ggplot2 versions of the result plots.
+## These sit next to the base-graphics star_plot_means() / star_plot_diagnostics() and do not change them.
+## Each function returns a ggplot object, so it can be printed, modified with `+`, or saved with star_ggsave().
+##   star_ggplot_means(x, effect, data, error, points, type)  bars (or lines) of means with error bars and letters
+##   star_ggplot_diagnostics(x)                               four residual panels
+##   star_ggsave(plot, file, width, height, dpi)              PNG / SVG / PDF export
+
+## Okabe-Ito palette (colour-blind safe); beyond 8 levels fall back to a generated palette.
+.star_gg_palette <- function(n, palette = NULL) {
+  if (!is.null(palette)) return(rep_len(palette, n))
+  base <- c("#0072B2", "#E69F00", "#009E73", "#D55E00", "#56B4E9", "#CC79A7", "#F0E442", "#999999")
+  if (n <= length(base)) base[seq_len(n)] else grDevices::hcl.colors(n, "Dark 3")
+}
+
+star_gg_theme <- function(base_size = 12) {
+  ggplot2::theme_classic(base_size = base_size) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold"),
+                   plot.subtitle = ggplot2::element_text(colour = "grey35", size = base_size * 0.8),
+                   axis.text = ggplot2::element_text(colour = "grey15"),
+                   legend.position = "top", legend.title = ggplot2::element_text(face = "bold"),
+                   strip.background = ggplot2::element_blank(), strip.text = ggplot2::element_text(face = "bold"))
+}
+
+## Error bar half-width from SE and N: "se", "sd" (= SE * sqrt(N)) or "ci" (95% t interval).
+.star_gg_err <- function(se, n, error) {
+  switch(error, se = se, sd = se * sqrt(n), ci = stats::qt(0.975, pmax(n - 1, 1)) * se)
+}
+.star_gg_err_label <- c(se = "mean +/- SE", sd = "mean +/- SD", ci = "mean with 95% CI")
+
+## Long x-axis labels: rotate when they would collide
+.star_gg_xlab_theme <- function(labels) {
+  if (length(labels) * max(nchar(as.character(labels))) > 40)
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 40, hjust = 1)) else ggplot2::theme()
+}
+
+## effect : NULL / a factor name -> means of that factor
+##          "interaction"        -> two-factor result, x = second factor, colour = first factor, as grouped bars
+##          "interaction_line"   -> the same as an interaction (profile) plot with lines
+## data   : the data frame given to star_aov(); only needed for points = TRUE
+star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd", "ci"), points = !is.null(data),
+                              main = NULL, palette = NULL, base_size = 12) {
+  error <- match.arg(error)
+  if (!inherits(x, "star_aov")) stop("'x' must be a result of star_aov() or star_splitplot().")
+  inter <- !is.null(effect) && effect %in% c("interaction", "interaction_line")
+  if (inter && is.null(x$cells)) stop("An interaction plot needs a two-factor result.")
+  if (!inter && !is.null(effect) && is.null(x$means[[effect]])) stop("Unknown effect '", effect, "'.")
+  raw <- NULL
+  if (isTRUE(points)) {
+    if (is.null(data)) stop("points = TRUE needs the 'data' that was analysed.")
+    raw <- star_prepare_data(data, x$response, x$factors, x$block)
+    raw <- raw[!is.na(raw[[x$response]]), , drop = FALSE]
+  }
+  y_lab <- paste("Mean", x$response)
+
+  if (!inter) {
+    f <- if (is.null(effect)) x$factors[1] else effect
+    m <- x$means[[f]]
+    m$Treatment <- factor(m$Treatment, levels = m$Treatment)
+    m$err <- .star_gg_err(m$SE, m$N, error)
+    m$lo <- m$Mean - m$err; m$hi <- m$Mean + m$err
+    has_letters <- !all(is.na(m$Group)) && isTRUE(x$effects$Significant[x$effects$Effect == f])
+    m$lab <- if (has_letters) m$Group else NA_character_
+    p <- ggplot2::ggplot(m, ggplot2::aes(x = Treatment, y = Mean)) +
+      ggplot2::geom_col(fill = .star_gg_palette(1, palette), width = 0.7, alpha = 0.9) +
+      ggplot2::geom_errorbar(ggplot2::aes(ymin = lo, ymax = hi), width = 0.2)
+    top <- m$hi
+    if (!is.null(raw)) {
+      pts <- data.frame(Treatment = factor(as.character(raw[[f]]), levels = levels(m$Treatment)), y = raw[[x$response]])
+      p <- p + ggplot2::geom_point(data = pts, ggplot2::aes(x = Treatment, y = y), inherit.aes = FALSE,
+                                   position = ggplot2::position_jitter(width = 0.12, height = 0, seed = 1),
+                                   shape = 21, size = 1.8, fill = "white", colour = "grey20", alpha = 0.85)
+      top <- pmax(top, tapply(pts$y, pts$Treatment, max)[as.character(m$Treatment)])
+    }
+    m$ytxt <- top
+    if (has_letters) p <- p + ggplot2::geom_text(data = m, ggplot2::aes(y = ytxt, label = lab), vjust = -0.5, fontface = "bold")
+    note <- if (has_letters) paste("Letters:", x$tests_used[[f]], "test, alpha =", x$alpha)
+            else if (isTRUE(x$interaction_significant)) "Interaction significant: compare means within levels (see interaction plot)"
+            else "Effect not significant"
+    return(p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
+             ggplot2::labs(x = f, y = y_lab, title = if (is.null(main)) paste("Mean", x$response, "by", f) else main,
+                           subtitle = sprintf("Bars: %s%s. %s", .star_gg_err_label[[error]], if (!is.null(raw)) "; circles: observations" else "", note)) +
+             star_gg_theme(base_size) + .star_gg_xlab_theme(levels(m$Treatment)))
+  }
+
+  # ---- interaction ----
+  f1 <- x$factors[1]; f2 <- x$factors[2]
+  cl <- x$cells
+  cd <- data.frame(g = factor(cl[[f1]], levels = unique(cl[[f1]])), x = factor(cl[[f2]], levels = unique(cl[[f2]])),
+                   Mean = cl$Mean, stringsAsFactors = FALSE)
+  cd$err <- .star_gg_err(cl$SE, cl$N, error)
+  cd$lo <- cd$Mean - cd$err; cd$hi <- cd$Mean + cd$err
+  sm <- x$simple[[paste(f1, "within", f2)]]
+  cd$lab <- NA_character_
+  if (!is.null(sm)) cd$lab <- sm$Group[match(paste(cd$g, cd$x), paste(sm[[f1]], sm[[f2]]))]
+  cols <- stats::setNames(.star_gg_palette(nlevels(cd$g), palette), levels(cd$g))
+  dodge <- ggplot2::position_dodge(width = 0.8)
+  top <- cd$hi
+  pts <- NULL
+  if (!is.null(raw)) {
+    pts <- data.frame(g = factor(as.character(raw[[f1]]), levels = levels(cd$g)), x = factor(as.character(raw[[f2]]), levels = levels(cd$x)),
+                      y = raw[[x$response]])
+    mx <- tapply(pts$y, list(pts$g, pts$x), max)
+    top <- pmax(top, mx[cbind(as.character(cd$g), as.character(cd$x))])
+  }
+  cd$ytxt <- top
+  note <- if (is.null(sm)) "Interaction not significant: no letters"
+          else sprintf("Letters compare %s within each level of %s (%s test, alpha = %s)", f1, f2, attr(sm, "test"), x$alpha)
+  sub <- sprintf("Bars: %s%s. %s", .star_gg_err_label[[error]], if (!is.null(pts)) "; circles: observations" else "", note)
+  ttl <- if (is.null(main)) paste("Mean", x$response, "by", f1, "and", f2) else main
+
+  if (identical(effect, "interaction")) {
+    p <- ggplot2::ggplot(cd, ggplot2::aes(x = x, y = Mean, fill = g)) +
+      ggplot2::geom_col(position = dodge, width = 0.75, alpha = 0.9) +
+      ggplot2::geom_errorbar(ggplot2::aes(ymin = lo, ymax = hi), position = dodge, width = 0.25) +
+      ggplot2::scale_fill_manual(values = cols, name = f1)
+    if (!is.null(pts))
+      p <- p + ggplot2::geom_point(data = pts, ggplot2::aes(x = x, y = y, group = g), inherit.aes = FALSE,
+                                   position = ggplot2::position_jitterdodge(jitter.width = 0.08, dodge.width = 0.8, seed = 1),
+                                   shape = 21, size = 1.6, fill = "white", colour = "grey20", alpha = 0.85)
+    p <- p + ggplot2::geom_text(ggplot2::aes(y = ytxt, label = lab, group = g), position = dodge, vjust = -0.5, fontface = "bold")
+  } else {
+    p <- ggplot2::ggplot(cd, ggplot2::aes(x = x, y = Mean, colour = g, group = g)) +
+      ggplot2::geom_line(linewidth = 0.8, position = ggplot2::position_dodge(width = 0.15)) +
+      ggplot2::geom_errorbar(ggplot2::aes(ymin = lo, ymax = hi), width = 0.12, position = ggplot2::position_dodge(width = 0.15)) +
+      ggplot2::geom_point(size = 3, position = ggplot2::position_dodge(width = 0.15)) +
+      ggplot2::geom_text(ggplot2::aes(y = ytxt, label = lab), position = ggplot2::position_dodge(width = 0.15), vjust = -0.9, fontface = "bold", show.legend = FALSE) +
+      ggplot2::scale_colour_manual(values = cols, name = f1)
+  }
+  p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
+    ggplot2::labs(x = f2, y = y_lab, title = ttl, subtitle = sub) +
+    star_gg_theme(base_size) + .star_gg_xlab_theme(levels(cd$x))
+}
+
+## Residual diagnostics in one faceted figure: residuals vs fitted, normal Q-Q, scale-location, histogram.
+star_ggplot_diagnostics <- function(x, base_size = 11) {
+  dg <- if (inherits(x, "star_diagnostics")) x else x$diagnostics
+  if (is.null(dg)) stop("No diagnostics available for this result.")
+  r <- dg$residuals
+  r <- r[is.finite(r$Studentized), , drop = FALSE]
+  flag_cols <- c(ok = "#0072B2", suspect = "#E69F00", outlier = "#D55E00")
+  r$status <- factor(ifelse(r$Flag == "", "ok", r$Flag), levels = names(flag_cols))
+  pn <- c("Residuals vs fitted", "Normal Q-Q", "Scale-location", "Histogram of residuals")
+  panel <- function(i) factor(pn[i], levels = pn)
+
+  rf <- data.frame(panel = panel(1), x = r$Fitted, y = r$Studentized, status = r$status, Row = r$Row, Flag = r$Flag)
+  qq <- stats::qqnorm(r$Studentized, plot.it = FALSE)
+  qs <- data.frame(panel = panel(2), x = qq$x, y = qq$y, status = r$status, Row = r$Row, Flag = r$Flag)
+  sl <- data.frame(panel = panel(3), x = r$Fitted, y = sqrt(abs(r$Studentized)), status = r$status, Row = r$Row, Flag = r$Flag)
+  pts <- rbind(rf, qs, sl)
+
+  # Q-Q reference line through the quartiles
+  qy <- stats::quantile(r$Studentized, c(0.25, 0.75), names = FALSE); qx <- stats::qnorm(c(0.25, 0.75))
+  slope <- diff(qy) / diff(qx); icpt <- qy[1] - slope * qx[1]
+  cut <- dg$outlier_cut
+  hl <- data.frame(panel = panel(1), y = c(-cut, 0, cut), kind = c("cut", "zero", "cut"))
+  hist_d <- data.frame(panel = panel(4), x = r$Studentized)
+  lab <- pts[pts$Flag != "" & pts$panel != pn[4], , drop = FALSE]
+
+  p <- ggplot2::ggplot(pts, ggplot2::aes(x = x, y = y)) +
+    ggplot2::geom_hline(data = hl, ggplot2::aes(yintercept = y, linetype = kind, colour = kind), show.legend = FALSE) +
+    ggplot2::scale_linetype_manual(values = c(cut = "dashed", zero = "solid")) +
+    ggplot2::geom_abline(data = data.frame(panel = panel(2), s = slope, i = icpt), ggplot2::aes(slope = s, intercept = i), colour = "grey50") +
+    ggplot2::geom_point(ggplot2::aes(fill = status), shape = 21, size = 2, colour = "grey20", alpha = 0.9) +
+    ggplot2::geom_histogram(data = hist_d, ggplot2::aes(x = x, y = ggplot2::after_stat(density)), inherit.aes = FALSE,
+                            bins = max(5, min(20, ceiling(sqrt(nrow(hist_d))))), fill = "#56B4E9", colour = "white", alpha = 0.9) +
+    ggplot2::stat_function(data = data.frame(panel = panel(4)), fun = stats::dnorm, inherit.aes = FALSE, colour = "grey30", linetype = "dashed") +
+    ggplot2::scale_fill_manual(values = flag_cols, drop = FALSE, name = NULL) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = 0.15)) +
+    ggplot2::facet_wrap(~panel, scales = "free", ncol = 2) +
+    ggplot2::labs(x = NULL, y = NULL, title = "Residual diagnostics",
+                  subtitle = sprintf("Studentized residuals. Dashed lines: +/-%s (outlier cut-off); numbers: row in your data", cut)) +
+    star_gg_theme(base_size)
+  if (nrow(lab)) p <- p + ggplot2::geom_text(data = lab, ggplot2::aes(label = Row), vjust = -0.8, size = 3, colour = "#D55E00")
+  p + ggplot2::scale_colour_manual(values = c(cut = "#D55E00", zero = "grey60"), guide = "none")
+}
+
+## Save a ggplot to PNG / SVG / PDF (chosen by the file extension). dpi matters for PNG only.
+star_ggsave <- function(plot, file, width = 8, height = 5.5, dpi = 300) {
+  ext <- tolower(tools::file_ext(file))
+  if (!ext %in% c("png", "svg", "pdf")) stop("Use a .png, .svg or .pdf file name.")
+  dev <- if (ext == "svg" && !requireNamespace("svglite", quietly = TRUE))      # base svg() device when svglite is absent
+    function(filename, width, height, ...) grDevices::svg(filename, width = width, height = height) else ext
+  ggplot2::ggsave(file, plot, device = dev, width = width, height = height, dpi = dpi, units = "in", bg = "white")
+  invisible(file)
+}

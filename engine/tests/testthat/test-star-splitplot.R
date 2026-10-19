@@ -10,7 +10,7 @@ test_that("split plot: ANOVA table, CVs and letters match the original STAR", {
   expect_equal(round(r$anova$F[c(1, 2, 4, 5)], 2), c(3.81, 42.87, 85.71, 13.22))
   expect_equal(round(r$anova$SS[c(3, 6)], 4), c(1419678.8056, 12584873.1667))
   expect_equal(round(c(r$cv_a, r$cv_b), 2), c(6.88, 10.79))
-  expect_true(r$interaction_significant)
+  expect_identical(r$interaction_significant, TRUE)
   # Variety within each Nitrogen level (LSD, Error(b)): level 1 = a a a... see original report
   sm <- r$simple[["Variety within Nitrogen"]]
   lv1 <- sm[sm$Nitrogen == levels(GomezSplitRCBD$Nitrogen)[1], ]
@@ -22,7 +22,16 @@ test_that("split plot: ANOVA table, CVs and letters match the original STAR", {
   pe <- sn[sn$Variety == "Peta", ]
   expect_equal(pe$Group[match(levels(GomezSplitRCBD$Nitrogen), pe$Nitrogen)], c("a", "a", "a", "a", "b", "b"))
   expect_equal(r$apa[1], "The main effect of Nitrogen on Yield was significant, F(5, 10) = 42.87, p < .001, partial eta squared = .96.")
-  expect_true(any(grepl("Split Plot in Randomized Complete Block", r$report)))
+  expect_match(r$report, "Split Plot in Randomized Complete Block", all = FALSE)
+})
+
+test_that("split plot: the classic report can be deferred to star_report()", {
+  full <- star_splitplot(GomezSplitRCBD, "Yield", "Nitrogen", "Variety", "Rep", test = "HSD")
+  lazy <- star_splitplot(GomezSplitRCBD, "Yield", "Nitrogen", "Variety", "Rep", test = "HSD", report = FALSE)
+  expect_null(lazy$report)
+  expect_identical(star_report(lazy), full$report)
+  expect_identical(star_report(full), full$report)
+  expect_identical(lazy$anova, full$anova)
 })
 
 test_that("split plot: an unbalanced layout is refused", {

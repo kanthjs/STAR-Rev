@@ -54,6 +54,9 @@ testServer(app, {
   check(round(c(r$cv_a, r$cv_b), 2)[2] == 10.79 && round(r$cv_a, 2) == 6.88, "Split plot: CV(a) = 6.88, CV(b) = 10.79")
   check(identical(tables()$simple[["Nitrogen within Variety"]][["Variety = IR8"]][1:2], c("4,252.67 d", "5,672.00 c")), "Split plot: Nitrogen within IR8 letters (original STAR)")
   check(length(output$report) > 0 && file.size(output$dl_xlsx) > 3000, "Split plot: report and Excel")
+  check(is.null(r$report) && grepl("Split Plot in Randomized Complete Block", output$report), "Split plot: classic report built on demand")
+  run(pw = "HSD"); run(pw = "auto")
+  check(identical(ok(), r), "Split plot: same settings give the same (cached) result")
   session$setInputs(plot_effect = "interaction"); p0 <- output$dl_png; check(file.size(p0) > 5000, "Split plot: interaction png")
 
   # ---- downloads and copy (two-factor result is selected) ----

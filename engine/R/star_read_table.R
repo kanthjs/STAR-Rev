@@ -13,11 +13,15 @@ star_read_table <- function(path, name = path) {
     first <- readLines(path, n = 5, warn = FALSE, encoding = "bytes")
     first <- first[nzchar(trimws(first))]
     if (!length(first)) stop("The file is empty.")
-    cnt <- vapply(c(",", ";", "\t", "|"), function(s) sum(lengths(regmatches(first[1], gregexpr(s, first[1], fixed = TRUE)))), 0)
+    cnt <- vapply(c(",", ";", "\t", "|"), \(s) sum(lengths(regmatches(first[1], gregexpr(s, first[1], fixed = TRUE)))), 0)
     sep <- if (max(cnt) == 0) "," else names(cnt)[which.max(cnt)]
-    read <- function(enc) read.table(path, header = TRUE, sep = sep, quote = "\"", colClasses = "character", comment.char = "",
-                                     strip.white = TRUE, na.strings = c("", "NA"), check.names = FALSE, fill = TRUE,
-                                     fileEncoding = enc)
+    read <- function(enc) {
+      read.table(path,
+        header = TRUE, sep = sep, quote = "\"", colClasses = "character", comment.char = "",
+        strip.white = TRUE, na.strings = c("", "NA"), check.names = FALSE, fill = TRUE,
+        fileEncoding = enc
+      )
+    }
     utf8 <- validUTF8(readLines(path, warn = FALSE, encoding = "bytes"))
     read(if (all(utf8)) "UTF-8-BOM" else "latin1")
   }

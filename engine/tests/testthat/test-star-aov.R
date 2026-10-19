@@ -16,9 +16,9 @@ test_that("RCBD one factor: tables match the original STAR report (F = 8.54, p =
   expect_equal(round(r$grand_mean, 1), 6155.5)
   expect_equal(names(r$means), "Nitrogen")
   expect_equal(r$means$Nitrogen$Group, c("b", "a", "a", "a", "a", "a"))
-  expect_true(r$significant)
+  expect_identical(r$significant, TRUE)
   expect_match(r$summary, "significant effect")
-  expect_true(any(grepl("ANOVA TABLE", r$report)))
+  expect_match(r$report, "ANOVA TABLE", all = FALSE)
   expect_equal(star_aov_rcbd(rcbd, "Yield", "Nitrogen", "Rep", test = "LSD")$anova, r$anova)
 })
 
@@ -46,7 +46,7 @@ test_that("RCBD two factors (Nitrogen x Variety) match the original STAR", {
   expect_equal(round(r$anova$F[2:4], 2), c(19.99, 98.42, 15.18))
   expect_equal(round(r$cv, 2), 10.07)
   expect_equal(round(r$grand_mean, 2), 5478.90)
-  expect_true(r$interaction_significant)
+  expect_identical(r$interaction_significant, TRUE)
   expect_equal(r$effects$Effect, c("Nitrogen", "Variety", "Nitrogen:Variety"))
   expect_true(all(is.na(r$means$Nitrogen$Group)))        # main effects are not compared when the interaction is significant
   expect_equal(r$tests_used[["Nitrogen"]], "HSD")        # 6 levels
@@ -75,7 +75,7 @@ test_that("CRD two factors (supp x dose) match the original STAR", {
   expect_equal(round(r$p_treatment, 4), 0.0002)
   expect_equal(round(r$cv, 2), 19.30)
   expect_equal(round(r$grand_mean, 2), 18.81)
-  expect_true(r$interaction_significant)
+  expect_identical(r$interaction_significant, TRUE)
   s1 <- r$simple[["supp within dose"]]                    # LSD
   expect_equal(s1$Group[s1$dose == "0.5"], c("a", "b"))
   expect_equal(s1$Group[s1$dose == "2"], c("a", "a"))
@@ -89,10 +89,10 @@ test_that("without a significant interaction the main effects are compared inste
   d <- expand.grid(A = c("a1", "a2"), B = c("b1", "b2", "b3"), rep = 1:4)
   d$y <- 10 + 3 * (d$A == "a2") + as.integer(factor(d$B)) * 0 + rnorm(nrow(d), sd = 0.5)
   r <- star_aov(d, "y", c("A", "B"), design = "CRD")
-  expect_false(r$interaction_significant)
+  expect_identical(r$interaction_significant, FALSE)
   expect_null(r$simple)
-  expect_true(r$effects$Significant[r$effects$Effect == "A"])
-  expect_false(any(is.na(r$means$A$Group)))
+  expect_identical(r$effects$Significant[r$effects$Effect == "A"], TRUE)
+  expect_false(anyNA(r$means$A$Group))
   expect_match(r$summary, "interaction is not significant")
 })
 
@@ -150,12 +150,12 @@ test_that("star_aov repairs a messy data set and reports what it did", {
   m$Nitrogen <- as.character(m$Nitrogen); m$Nitrogen[2] <- paste0(" ", m$Nitrogen[2], "  ")
   r <- star_aov(m, "Yield", "Nitrogen", "Rep", design = "RCBD", test = "LSD")
   expect_s3_class(r, "star_aov")
-  expect_true(any(grepl("read as numbers", r$data_notes)))
-  expect_true(any(grepl("extra spaces", r$data_notes)))
-  expect_true(any(grepl("missing", r$data_notes)))
+  expect_match(r$data_notes, "read as numbers", all = FALSE)
+  expect_match(r$data_notes, "extra spaces", all = FALSE)
+  expect_match(r$data_notes, "missing", all = FALSE)
   c2 <- data.frame(g = rep(c("a", "b", ""), each = 4), y = c(1, 2, 3, 4, 3, 4, 5, 7, 9, 9, 9, 9))
   r2 <- star_aov(c2, "y", "g")                          # rows without a treatment label are removed
-  expect_true(any(grepl("removed", r2$data_notes)))
+  expect_match(r2$data_notes, "removed", all = FALSE)
   expect_equal(sum(r2$means$g$N), 8)
   m$Yield[7] <- "oops"                                  # two missing responses: STAR cannot estimate them
   expect_error(star_aov(m, "Yield", "Nitrogen", "Rep", design = "RCBD"), "Too many missing")
@@ -197,7 +197,7 @@ test_that("diagnostics: outliers are found (row 5 of Insecticides is borderline,
   dg <- star_aov(bad, "GrainYield", "Insecticide", design = "CRD")$diagnostics
   expect_gte(dg$n_outliers, 1)
   expect_equal(dg$outliers$Row[1], "5")
-  expect_false(dg$ok)
+  expect_identical(dg$ok, FALSE)
   expect_match(dg$messages[1], "outlier")
 })
 

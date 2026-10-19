@@ -46,7 +46,18 @@ testServer(app, {
   check(identical(tables()$simple[["Nitrogen within Variety"]][["Variety = IR8"]][1:2], c("4,252.67 d", "5,672.00 c")), "RCBD 2 factors: Nitrogen within IR8 letters")
   check("Simple effects" %in% names(xlsx_sheets()), "RCBD 2 factors: simple effects in Excel")
 
+  # ---- split plot in RCBD (nitrogen main plot x variety sub plot) ----
+  session$setInputs(design = "SplitRCBD", example = "split1", resp = "Yield", trt_main = "Nitrogen", trt_sub = "Variety", blk = "Rep")
+  run(pw = "auto")
+  r <- ok()
+  check(identical(r$anova$Source, c("Rep", "Nitrogen", "Error(a)", "Variety", "Nitrogen:Variety", "Error(b)", "Total")), "Split plot: ANOVA rows")
+  check(round(c(r$cv_a, r$cv_b), 2)[2] == 10.79 && round(r$cv_a, 2) == 6.88, "Split plot: CV(a) = 6.88, CV(b) = 10.79")
+  check(identical(tables()$simple[["Nitrogen within Variety"]][["Variety = IR8"]][1:2], c("4,252.67 d", "5,672.00 c")), "Split plot: Nitrogen within IR8 letters (original STAR)")
+  check(length(output$report) > 0 && file.size(output$dl_xlsx) > 3000, "Split plot: report and Excel")
+  session$setInputs(plot_effect = "interaction"); p0 <- output$dl_png; check(file.size(p0) > 5000, "Split plot: interaction png")
+
   # ---- downloads and copy (two-factor result is selected) ----
+  session$setInputs(design = "RCBD", example = "rcbd2", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep"); run(pw = "auto")
   x <- output$dl_xlsx; check(file.exists(x) && file.size(x) > 3000, "xlsx download created")
   sh <- openxlsx::getSheetNames(x); check(identical(sh, c("ANOVA", "Means", "Cell means", "Simple effects", "Info")), "xlsx sheets for a two-factor result")
   session$setInputs(plot_effect = "interaction"); p1 <- output$dl_png; check(file.exists(p1) && file.size(p1) > 5000, "png (interaction plot)")

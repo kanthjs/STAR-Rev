@@ -108,3 +108,10 @@ Not verified: `ClusterAgglo`, `Discriminant`, `FitDistrib` fail with the same er
 - Checked against the original STAR on R 2.15.1: RCBD Nitrogen x Variety (all ANOVA rows, CV 10.07, letters of both simple-effect tables) and CRD supp x dose (ToothGrowth: F 15.57 / 92.00 / 4.11, CV 19.30, letters).
 - Limits: at most two factors; the design must be complete (every treatment combination present); marginal means assume a balanced layout. Three-factor and split-plot layouts are not covered yet.
 - App: choose one or two treatment factors, four built-in examples, interaction/simple-effect tables laid out like STAR's, grouped-bar interaction plot, Excel with sheets ANOVA / Means / Cell means / Simple effects / Info.
+
+## Update: split plot in RCBD
+
+- `star_splitplot(data, response, main, sub, block, test, alpha)` (new, `engine/R/star_splitplot.R`): model `Rep + A*B + Error(Rep:A)`, ANOVA with Error(a) and Error(b), CV(a) and CV(b), main effects (A with Error(a), B with Error(b)), and with a significant interaction the simple effects: B within A (Error(b)) and A within B (pooled error of (a) and (b), Satterthwaite df, floored), as STAR does. Returns the same `star_aov` structure plus `cv_a`/`cv_b`, so the app and plots work unchanged.
+- Checked against the original STAR on R 2.15.1 (Gomez rice, Nitrogen x Variety): all ANOVA rows, CV(a) = 6.88, CV(b) = 10.79 and the letters of both simple-effect tables.
+- Limits: complete and balanced layout only (one observation per block x main x sub), no missing values; split plot in CRD, split-split and strip plots are not covered; assumption checks are not computed yet.
+- App: design "Split plot in RCBD" with main-plot and sub-plot pickers and a built-in example.

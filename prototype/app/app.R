@@ -53,12 +53,14 @@ html_table <- function(df) {
 
 examples <- list(
   CRD = c("One factor: insecticides (7 x 4 reps)" = "crd1", "Two factors: tooth growth (supp x dose)" = "crd2"),
-  RCBD = c("One factor: rice yield vs nitrogen" = "rcbd1", "Two factors: nitrogen x variety" = "rcbd2"))
+  RCBD = c("One factor: rice yield vs nitrogen" = "rcbd1", "Two factors: nitrogen x variety" = "rcbd2"),
+  SplitRCBD = c("Rice: nitrogen (main plot) x variety (sub plot)" = "split1"))
 example_setup <- list(
   crd1 = list(file = "example_crd.csv", resp = "GrainYield", trt = "Insecticide", blk = NULL),
   crd2 = list(file = "example_crd2.csv", resp = "len", trt = c("supp", "dose"), blk = NULL),
   rcbd1 = list(file = "example_rcbd.csv", resp = "Yield", trt = "Nitrogen", blk = "Rep"),
-  rcbd2 = list(file = "example_rcbd2.csv", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep"))
+  rcbd2 = list(file = "example_rcbd2.csv", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep"),
+  split1 = list(file = "example_split.csv", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep"))
 
 copy_js <- "
 Shiny.addCustomMessageHandler('copy_text', function(msg) {
@@ -79,7 +81,8 @@ ui <- fluidPage(
   titlePanel("STAR (prototype): analysis of variance"),
   sidebarLayout(
     sidebarPanel(
-      radioButtons("design", "Experimental design", c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD")),
+      radioButtons("design", "Experimental design", c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD",
+                                                "Split plot in RCBD" = "SplitRCBD")),
       radioButtons("src", "Data", c("Built-in example" = "ex", "Upload CSV" = "up")),
       conditionalPanel("input.src == 'ex'", uiOutput("example_picker")),
       conditionalPanel("input.src == 'up'", fileInput("file", "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))),
@@ -121,15 +124,24 @@ server <- function(input, output, session) {
     nm <- names(dat()); s <- setup()
     tagList(
       selectInput("resp", "Response variable", nm, selected = if (!is.null(s)) s$resp else tail(nm, 1)),
-      selectizeInput("trt", "Treatment factor(s): one or two", nm, multiple = TRUE,
+      if (input$design == "SplitRCBD") tagList(
+        selectInput("trt_main", "Main-plot factor", nm, selected = if (!is.null(s)) s$trt[1] else nm[min(2, length(nm))]),
+        selectInput("trt_sub", "Sub-plot factor", nm, selected = if (!is.null(s)) s$trt[2] else nm[min(3, length(nm))]))
+      else selectizeInput("trt", "Treatment factor(s): one or two", nm, multiple = TRUE,
                      selected = if (!is.null(s)) s$trt else nm[min(2, length(nm))], options = list(maxItems = 2)),
-      if (input$design == "RCBD") selectInput("blk", "Block / replication", nm, selected = if (!is.null(s)) s$blk else nm[1])
+      if (input$design != "CRD") selectInput("blk", "Block / replication", nm, selected = if (!is.null(s)) s$blk else nm[1])
     )
   })
 
   res <- eventReactive(input$go_aov, {
-    req(input$resp, input$trt)
-    blk <- if (input$design == "RCBD") { req(input$blk); input$blk } else NULL
+    req(input$resp)
+    blk <- if (input$design != "CRD") { req(input$blk); input$blk } else NULL
+    if (input$design == "SplitRCBD") {
+      req(input$trt_main, input$trt_sub)
+      return(tryCatch(star_splitplot(dat(), input$resp, input$trt_main, input$trt_sub, blk, test = input$pw, alpha = as.numeric(input$alpha)),
+                      error = function(e) structure(list(message = conditionMessage(e)), class = "star_error")))
+    }
+    req(input$trt)
     tryCatch(star_aov(dat(), input$resp, input$trt, blk, design = input$design, test = input$pw, alpha = as.numeric(input$alpha)),
              error = function(e) structure(list(message = conditionMessage(e)), class = "star_error"))
   })
@@ -178,7 +190,7 @@ server <- function(input, output, session) {
   output$means_plot <- renderPlot(star_plot_means(ok(), plot_effect()))
   output$diag_ui <- renderUI({
     dg <- ok()$diagnostics
-    if (is.null(dg)) return(div(class = "alert alert-warning", "Assumption checks could not be computed for this data."))
+    if (is.null(dg)) return(div(class = "alert alert-warning", if (identical(ok()$design, "SplitRCBD")) "Assumption checks are not available for split-plot designs yet." else "Assumption checks could not be computed for this data."))
     tagList(
       div(class = if (dg$ok) "alert alert-success" else "alert alert-warning", tags$ul(lapply(dg$messages, tags$li))),
       if (nrow(dg$outliers)) {
@@ -201,7 +213,8 @@ server <- function(input, output, session) {
     sheets$Info <- data.frame(Item = c("Design", "Response", "Treatment factor(s)", "Block", "Mean comparison", "Alpha", "Grand mean", "CV (%)", "Summary", "Data checks"),
                               Value = c(r$design, r$response, paste(r$factors, collapse = ", "), if (is.null(r$block)) "-" else r$block,
                                         if (r$test == "auto") "auto (LSD if <= 5 levels, else HSD)" else r$test, r$alpha,
-                                        round(r$grand_mean, 4), round(r$cv, 2), r$summary,
+                                        round(r$grand_mean, 4),
+                                        if (is.null(r$cv_a)) round(r$cv, 2) else sprintf("CV(a) = %.2f, CV(b) = %.2f", r$cv_a, r$cv_b), r$summary,
                                         if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none"))
     sheets
   })

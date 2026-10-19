@@ -161,7 +161,8 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
     p <- if (is.na(e$P)) "p = NA" else if (e$P < 0.001) "p < .001" else paste("p =", nz(e$P, 3))
     lab <- if (grepl(":", e$Effect)) paste("The", sub(":", " x ", e$Effect), "interaction") else paste("The main effect of", e$Effect)
     sprintf("%s on %s was %s, F(%d, %d) = %.2f, %s, partial eta squared = %s.", lab, response,
-            if (isTRUE(e$Significant)) "significant" else "not significant", e$DF, err$DF, e$F, p, nz(e$PartialEta2, 2))
+            if (isTRUE(e$Significant)) "significant" else "not significant", e$DF,
+            if (is.null(e$ErrDF)) err$DF else e$ErrDF, e$F, p, nz(e$PartialEta2, 2))
   }, "")
 }
 

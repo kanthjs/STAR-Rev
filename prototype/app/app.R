@@ -105,7 +105,10 @@ ui <- fluidPage(
                  fluidRow(column(4, radioButtons("plot_style", "Style", c("Classic" = "classic", "ggplot2" = "gg"), inline = TRUE)),
                           column(8, conditionalPanel("input.plot_style == 'gg'", fluidRow(
                             column(6, selectInput("gg_error", "Error bars", c("SE" = "se", "SD" = "sd", "95% CI" = "ci"))),
-                            column(6, br(), checkboxInput("gg_points", "Show observations", TRUE)))))),
+                            column(6, br(), checkboxInput("gg_points", "Show observations", TRUE))),
+                            fluidRow(column(4, textInput("gg_title", "Title", placeholder = "(automatic)")),
+                                     column(4, textInput("gg_xlab", "X axis label", placeholder = "(automatic)")),
+                                     column(4, textInput("gg_ylab", "Y axis label", placeholder = "(automatic)")))))),
                  uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"),
                  fluidRow(column(4, selectInput("dl_fmt", "File type", c("PNG" = "png", "SVG" = "svg", "PDF" = "pdf"))),
                           column(4, conditionalPanel("input.dl_fmt == 'png'", selectInput("dl_dpi", "Resolution", c("Screen (120 dpi)" = 120, "Print (300 dpi)" = 300, "High (600 dpi)" = 600), selected = 300))),
@@ -208,7 +211,8 @@ server <- function(input, output, session) {
   plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, if (!is.null(r$cells)) c("interaction", "interaction_line")))) r$factors[1] else pe })
   use_gg <- reactive(identical(input$plot_style, "gg"))
   # the ggplot2 figure (a ggplot object); the classic style is drawn with base graphics instead
-  gg_means <- reactive(star_ggplot_means(ok(), plot_effect(), data = if (isTRUE(input$gg_points)) used_data(), error = input$gg_error %||% "se"))
+  gg_means <- reactive(star_ggplot_means(ok(), plot_effect(), data = if (isTRUE(input$gg_points)) used_data(), error = input$gg_error %||% "se",
+                                                main = input$gg_title, xlab = input$gg_xlab, ylab = input$gg_ylab))
   draw_means <- function() {
     if (use_gg()) print(gg_means()) else star_plot_means(ok(), sub("_line$", "", plot_effect()))
   }

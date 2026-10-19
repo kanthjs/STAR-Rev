@@ -21,6 +21,9 @@ star_gg_theme <- function(base_size = 12) {
                    strip.background = ggplot2::element_blank(), strip.text = ggplot2::element_text(face = "bold"))
 }
 
+## A user-supplied text, or the default when it is NULL / empty
+.star_gg_or <- function(x, default) if (is.null(x) || is.na(x[1]) || !nzchar(trimws(x[1]))) default else x[1]
+
 ## Error bar half-width from SE and N: "se", "sd" (= SE * sqrt(N)) or "ci" (95% t interval).
 .star_gg_err <- function(se, n, error) {
   switch(error, se = se, sd = se * sqrt(n), ci = stats::qt(0.975, pmax(n - 1, 1)) * se)
@@ -38,7 +41,7 @@ star_gg_theme <- function(base_size = 12) {
 ##          "interaction_line"   -> the same as an interaction (profile) plot with lines
 ## data   : the data frame given to star_aov(); only needed for points = TRUE
 star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd", "ci"), points = !is.null(data),
-                              main = NULL, palette = NULL, base_size = 12) {
+                              main = NULL, xlab = NULL, ylab = NULL, palette = NULL, base_size = 12) {
   error <- match.arg(error)
   if (!inherits(x, "star_aov")) stop("'x' must be a result of star_aov() or star_splitplot().")
   inter <- !is.null(effect) && effect %in% c("interaction", "interaction_line")
@@ -50,7 +53,7 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
     raw <- star_prepare_data(data, x$response, x$factors, x$block)
     raw <- raw[!is.na(raw[[x$response]]), , drop = FALSE]
   }
-  y_lab <- paste("Mean", x$response)
+  y_lab <- .star_gg_or(ylab, paste("Mean", x$response))
 
   if (!inter) {
     f <- if (is.null(effect)) x$factors[1] else effect
@@ -77,7 +80,7 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
             else if (isTRUE(x$interaction_significant)) "Interaction significant: compare means within levels (see interaction plot)"
             else "Effect not significant"
     return(p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
-             ggplot2::labs(x = f, y = y_lab, title = if (is.null(main)) paste("Mean", x$response, "by", f) else main,
+             ggplot2::labs(x = .star_gg_or(xlab, f), y = y_lab, title = .star_gg_or(main, paste("Mean", x$response, "by", f)),
                            subtitle = sprintf("Bars: %s%s. %s", .star_gg_err_label[[error]], if (!is.null(raw)) "; circles: observations" else "", note)) +
              star_gg_theme(base_size) + .star_gg_xlab_theme(levels(m$Treatment)))
   }
@@ -106,7 +109,7 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
   note <- if (is.null(sm)) "Interaction not significant: no letters"
           else sprintf("Letters compare %s within each level of %s (%s test, alpha = %s)", f1, f2, attr(sm, "test"), x$alpha)
   sub <- sprintf("Bars: %s%s. %s", .star_gg_err_label[[error]], if (!is.null(pts)) "; circles: observations" else "", note)
-  ttl <- if (is.null(main)) paste("Mean", x$response, "by", f1, "and", f2) else main
+  ttl <- .star_gg_or(main, paste("Mean", x$response, "by", f1, "and", f2))
 
   if (identical(effect, "interaction")) {
     p <- ggplot2::ggplot(cd, ggplot2::aes(x = x, y = Mean, fill = g)) +
@@ -127,7 +130,7 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
       ggplot2::scale_colour_manual(values = cols, name = f1)
   }
   p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
-    ggplot2::labs(x = f2, y = y_lab, title = ttl, subtitle = sub) +
+    ggplot2::labs(x = .star_gg_or(xlab, f2), y = y_lab, title = ttl, subtitle = sub) +
     star_gg_theme(base_size) + .star_gg_xlab_theme(levels(cd$x))
 }
 

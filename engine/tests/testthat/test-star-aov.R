@@ -302,3 +302,12 @@ test_that("star_ggsave writes png, svg and pdf", {
   }
   expect_error(star_ggsave(p, tempfile(fileext = ".bmp")), "png, .svg or .pdf")
 })
+
+test_that("custom title and axis labels are used; empty text keeps the default", {
+  skip_if_not_installed("ggplot2")
+  one <- star_aov(Insecticides, "GrainYield", "Insecticide", design = "CRD")
+  p <- star_ggplot_means(one, main = "My title", xlab = "Product", ylab = "Yield (kg/ha)")
+  expect_equal(c(p$labels$title, p$labels$x, p$labels$y), c("My title", "Product", "Yield (kg/ha)"))
+  q <- star_ggplot_means(one, main = "", xlab = "  ", ylab = NULL)
+  expect_equal(c(q$labels$title, q$labels$x, q$labels$y), c("Mean GrainYield by Insecticide", "Insecticide", "Mean GrainYield"))
+})

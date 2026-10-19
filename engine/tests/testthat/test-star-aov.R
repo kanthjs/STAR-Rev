@@ -104,6 +104,47 @@ test_that("CRD ignores a block argument and needs no block", {
   expect_equal(round(r1$p_treatment, 4), 0.0159)
 })
 
+test_that("the direct aov() fit gives the same table as STAR's own AOVTest", {
+  legacy_table <- function(d, response, factors, block, design) {
+    res <- .star_aov_legacy(star_prepare_data(d, response, factors, block), response, factors, block, design, "auto", 0.05)$res
+    unname(as.matrix(ConstructAOVTable(res$aovTable[[1]][[1]])))
+  }
+  native_table <- function(r) unname(as.matrix(r$anova[-1]))
+  layouts <- list(
+    list(rcbd, "Yield", "Nitrogen", "Rep", "RCBD"),
+    list(GomezSplitRCBD, "Yield", c("Nitrogen", "Variety"), "Rep", "RCBD"),
+    list(tg[-c(1, 5, 22, 40), ], "len", c("supp", "dose"), NULL, "CRD"),     # unbalanced CRD
+    list(warpbreaks, "breaks", c("wool", "tension"), NULL, "CRD")
+  )
+  for (a in layouts) {
+    r <- star_aov(a[[1]], a[[2]], a[[3]], a[[4]], design = a[[5]], report = FALSE)
+    expect_equal(native_table(r), legacy_table(a[[1]], a[[2]], a[[3]], a[[4]], a[[5]]), tolerance = 1e-10)
+  }
+})
+
+test_that("report = FALSE leaves the classic printout to star_report()", {
+  full <- star_aov(GomezSplitRCBD, "Yield", c("Nitrogen", "Variety"), "Rep", design = "RCBD", test = "duncan")
+  lazy <- star_aov(GomezSplitRCBD, "Yield", c("Nitrogen", "Variety"), "Rep", design = "RCBD", test = "duncan", report = FALSE)
+  expect_null(lazy$report)
+  expect_identical(star_report(lazy), full$report)
+  lazy$report <- full$report
+  expect_identical(lazy, full)
+})
+
+test_that("CRD: rows with a missing response are left out; column names may contain spaces", {
+  crd_na <- Insecticides
+  crd_na$GrainYield[c(2, 9)] <- NA
+  r <- star_aov(crd_na, "GrainYield", "Insecticide", design = "CRD")
+  expect_equal(r$anova$DF, c(6, 19, 25))
+  expect_match(r$data_notes, "2 row\\(s\\) with a missing response were left out", all = FALSE)
+  expect_equal(r$anova$F, star_aov(crd_na[-c(2, 9), ], "GrainYield", "Insecticide", design = "CRD")$anova$F)
+
+  sp <- setNames(tg, c("tooth length", "supp", "dose mg"))
+  r <- star_aov(sp, "tooth length", c("supp", "dose mg"), design = "CRD")
+  expect_equal(r$anova$Source, c("supp", "dose mg", "supp:dose mg", "Error", "Total"))
+  expect_equal(r$anova$F, star_aov(tg, "len", c("supp", "dose"), design = "CRD")$anova$F)
+})
+
 test_that("every mean-comparison choice works and 'auto' follows STAR's rule", {
   for (tst in c("LSD", "HSD", "duncan", "SNK", "scheffe")) {
     r <- star_aov(rcbd, "Yield", "Nitrogen", "Rep", design = "RCBD", test = tst)

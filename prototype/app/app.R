@@ -145,19 +145,20 @@ server <- function(input, output, session) {
   })
 
   # Runs on "Run ANOVA" only. Results are cached by data and settings, so going back to an earlier choice
-  # (e.g. LSD -> Tukey -> LSD) reuses the earlier result instead of analysing again.
+  # (e.g. LSD -> Tukey -> LSD) reuses the earlier result instead of analysing again. The classic STAR report is
+  # built later, only when it is viewed, copied or downloaded (see report_text).
   res <- reactive({
     req(input$resp)
     blk <- if (input$design != "CRD") { req(input$blk); input$blk } else NULL
     if (input$design == "SplitRCBD") {
       req(input$trt_main, input$trt_sub)
-      # the classic STAR report is built later, only when it is viewed, copied or downloaded (see report_text)
       return(tryCatch(star_splitplot(dat(), input$resp, input$trt_main, input$trt_sub, blk, test = input$pw,
                                      alpha = as.numeric(input$alpha), report = FALSE),
                       error = function(e) structure(list(message = conditionMessage(e)), class = "star_error")))
     }
     req(input$trt)
-    tryCatch(star_aov(dat(), input$resp, input$trt, blk, design = input$design, test = input$pw, alpha = as.numeric(input$alpha)),
+    tryCatch(star_aov(dat(), input$resp, input$trt, blk, design = input$design, test = input$pw,
+                      alpha = as.numeric(input$alpha), report = FALSE),
              error = function(e) structure(list(message = conditionMessage(e)), class = "star_error"))
   }) |>
     bindCache(dat(), input$design, input$resp, input$trt, input$trt_main, input$trt_sub, input$blk, input$pw, input$alpha) |>

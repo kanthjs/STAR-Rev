@@ -6,9 +6,11 @@
 ##   treatment       : one factor, or two factors (factorial layout with interaction)
 ## Mean separation follows STAR: with a significant interaction the simple effects are compared (each factor at
 ## each level of the other); otherwise the significant main effects are compared.
+## `report = FALSE` skips the classic STAR printout (the slowest step); star_report() builds it later on demand.
 
 star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", "RCBD"),
-                     test = c("auto", "LSD", "HSD", "duncan", "SNK", "scheffe", "bonferroni"), alpha = 0.05) {
+                     test = c("auto", "LSD", "HSD", "duncan", "SNK", "scheffe", "bonferroni"), alpha = 0.05,
+                     report = TRUE) {
   design <- match.arg(design)
   test <- match.arg(test)
   factors <- treatment
@@ -24,25 +26,31 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
   counts <- table(d[, factors, drop = FALSE])
   if (any(counts == 0)) stop("Some treatment combinations have no observations; the design must be complete.")
 
-  # Let STAR choose the test per effect (LSD if <= 5 levels, else Tukey) unless the user picked one
-  args <- list(data = d, design = design, respvar = response, factor1 = factors, sig = alpha)
-  if (design == "RCBD") args$rep1 <- block
-  if (!test %in% c("auto", "bonferroni")) {
-    args$pwTest <- test
-    args$pwVar <- response
+  y <- d[[response]]
+  # STAR fits `response ~ block + factors` with aov() for a CRD (any layout; rows with a missing response are left
+  # out) and for an RCBD in which every block x treatment cell has the same count and no response is missing, so
+  # that model is fitted directly here. Otherwise STAR's own procedure is run: it estimates missing values,
+  # adjusts degrees of freedom and refuses layouts it cannot analyse.
+  if (design == "CRD" || (!anyNA(y) && .star_is_balanced(d[c(block, factors)]))) {
+    raw <- ConstructAOVTable(summary(stats::aov(.star_aov_formula(response, factors, block), data = d)))
+    if (anyNA(y)) data_notes <- c(data_notes, sprintf("The %d row(s) with a missing response were left out of the analysis.", sum(is.na(y))))
+    report <- if (report) .star_aov_report(d, response, factors, block, design, test, alpha)
+  } else {
+    legacy <- .star_aov_legacy(d, response, factors, block, design, test, alpha)
+    res <- legacy$res
+    report <- legacy$report
+    err_line <- grep("^ERROR:", report, value = TRUE)
+    if (length(err_line) || is.null(res$aovTable) || length(res$aovTable) == 0) {
+      stop(if (length(err_line)) sub("^ERROR:[[:space:]]*", "", err_line[1]) else "STAR could not fit this model",
+        if (anyNA(y)) paste0(" The response has ", sum(is.na(y)), " missing value(s); remove or fill them in and try again.") else "",
+        call. = FALSE
+      )
+    }
+    if (any(grepl("estimates of the missing values", report))) data_notes <- c(data_notes, "Missing response values were estimated by STAR's missing-data procedure (RCBD); degrees of freedom are adjusted.")
+    raw <- ConstructAOVTable(res$aovTable[[1]][[1]])
   }
-  report <- capture.output(res <- do.call(AOVTest, args))
-  err_line <- grep("^ERROR:", report, value = TRUE)
-  if (length(err_line) || is.null(res$aovTable) || length(res$aovTable) == 0) {
-    stop(if (length(err_line)) sub("^ERROR:[[:space:]]*", "", err_line[1]) else "STAR could not fit this model",
-      if (any(is.na(d[[response]]))) paste0(" The response has ", sum(is.na(d[[response]])), " missing value(s); remove or fill them in and try again.") else "",
-      call. = FALSE
-    )
-  }
-  if (any(grepl("estimates of the missing values", report))) data_notes <- c(data_notes, "Missing response values were estimated by STAR's missing-data procedure (RCBD); degrees of freedom are adjusted.")
-  raw <- ConstructAOVTable(res$aovTable[[1]][[1]])
   anova <- data.frame(
-    Source = trimws(rownames(raw)), DF = raw[[1]], SS = raw[[2]], MS = raw[[3]],
+    Source = gsub("`", "", trimws(rownames(raw)), fixed = TRUE), DF = raw[[1]], SS = raw[[2]], MS = raw[[3]],
     F = raw[[4]], P = raw[[5]], row.names = NULL, stringsAsFactors = FALSE
   )
   err <- anova[anova$Source == "Error", ]
@@ -55,7 +63,6 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
   effects$PartialEta2 <- ss / (ss + err$SS)
   rownames(effects) <- NULL
 
-  y <- d[[response]]
   grand_mean <- mean(y, na.rm = TRUE)
   cv <- 100 * sqrt(err$MS) / grand_mean
 
@@ -85,10 +92,42 @@ star_aov <- function(data, response, treatment, block = NULL, design = c("CRD", 
       alpha = alpha, design = design, response = response, treatment = factors[1], factors = factors,
       block = block, p_treatment = effects$P[1], significant = effects$Significant[1],
       interaction_significant = interaction_sig, summary = summary_text, apa = apa, report = report,
-      data_notes = data_notes, diagnostics = diagnostics
+      data_notes = data_notes, diagnostics = diagnostics, data = d
     ),
     class = "star_aov"
   )
+}
+
+# STAR's own analysis (AOVTest): the fitted tables and the classic printout
+.star_aov_legacy <- function(d, response, factors, block, design, test, alpha) {
+  # Let STAR choose the test per effect (LSD if <= 5 levels, else Tukey) unless the user picked one
+  args <- list(data = d, design = design, respvar = response, factor1 = factors, sig = alpha)
+  if (design == "RCBD") args$rep1 <- block
+  if (!test %in% c("auto", "bonferroni")) {
+    args$pwTest <- test
+    args$pwVar <- response
+  }
+  report <- capture.output(res <- do.call(AOVTest, args))
+  list(res = res, report = report)
+}
+
+.star_aov_report <- function(d, response, factors, block, design, test, alpha) {
+  tryCatch(
+    .star_aov_legacy(d, response, factors, block, design, test, alpha)$report,
+    error = \(e) "The classic STAR report could not be produced for this data."
+  )
+}
+
+.star_aov_formula <- function(response, factors, block = NULL) {
+  bt <- \(x) if (length(x)) paste0("`", x, "`")
+  rhs <- paste(c(bt(block), paste(bt(factors), collapse = " * ")), collapse = " + ")
+  stats::as.formula(paste(bt(response), "~", rhs))
+}
+
+# TRUE when every combination of the columns of `cols` occurs equally often
+.star_is_balanced <- function(cols) {
+  counts <- table(cols)
+  all(counts == counts[1])
 }
 
 .star_aov_summary <- function(anova, effects, means, factors, response, interaction_sig, tests_used, alpha, cv) {
@@ -169,15 +208,18 @@ print.star_aov <- function(x, ...) {
   invisible(x)
 }
 
-## Classic STAR printout of a result; built on demand for a split plot run with `report = FALSE`.
+## Classic STAR printout of a result; built on demand for a result made with `report = FALSE`.
 star_report <- function(x) {
   if (!is.null(x$report)) {
     return(x$report)
   }
-  if (identical(x$design, "SplitRCBD") && !is.null(x$data)) {
+  if (is.null(x$data)) {
+    return(character())
+  }
+  if (identical(x$design, "SplitRCBD")) {
     return(.star_split_report(x$data, x$response, x$main, x$sub, x$block, x$test, x$alpha))
   }
-  character()
+  .star_aov_report(x$data, x$response, x$factors, x$block, x$design, x$test, x$alpha)
 }
 
 ## Bar plots with +/- 1 SE bars and mean-separation letters.

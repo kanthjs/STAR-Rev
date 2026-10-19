@@ -13,7 +13,7 @@ testServer(app, {
   # ---- RCBD, one factor (rice yield vs nitrogen) ----
   session$setInputs(design = "RCBD", example = "rcbd1", resp = "Yield", trt = "Nitrogen", blk = "Rep")
   tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = "Duncan", SNK = "Newman", scheffe = "Scheffe")
-  for (pw in names(tests)) { run(pw = pw); check(any(grepl(tests[[pw]], ok()$report)), paste("RCBD 1 factor: mean comparison", pw, "is used")) }
+  for (pw in names(tests)) { run(pw = pw); check(any(grepl(tests[[pw]], report_text())), paste("RCBD 1 factor: mean comparison", pw, "is used")) }
   run(pw = "LSD")
   check(round(ok()$anova$F[2], 2) == 8.54, "RCBD 1 factor: F = 8.54")
   check(identical(tables()$anova$`Pr(>F)`[2], "0.0022"), "RCBD 1 factor: p formatted 0.0022")

@@ -233,14 +233,14 @@ ui <- navbarPage(
         tabPanel("Results", br(), uiOutput("results_ui"), br(), conditionalPanel("input.go_aov > 0", downloadButton("dl_xlsx", "Download Excel (.xlsx)"))),
         tabPanel("Data", br(), uiOutput("data_ui")),
         tabPanel("Plot", br(),
-                 fluidRow(column(4, radioButtons("plot_style", "Style", c("Classic" = "classic", "ggplot2" = "gg"), inline = TRUE)),
+                 fluidRow(column(4, radioButtons("plot_style", "Style", c("ggplot2" = "gg", "Classic" = "classic"), inline = TRUE)),
                           column(8, conditionalPanel("input.plot_style == 'gg'", fluidRow(
                             column(6, selectInput("gg_error", "Error bars", c("SE" = "se", "SD" = "sd", "95% CI" = "ci"))),
                             column(6, br(), checkboxInput("gg_points", "Show observations", TRUE)))))),
                  plot_labels_ui("gg"),
                  uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"), plot_export_ui("aov")),
         tabPanel("Outliers & assumptions", br(),
-                 radioButtons("diag_style", "Plot style", c("Classic" = "classic", "ggplot2" = "gg"), inline = TRUE),
+                 radioButtons("diag_style", "Plot style", c("ggplot2" = "gg", "Classic" = "classic"), inline = TRUE),
                  uiOutput("diag_ui"), plotOutput("diag_plot", height = "380px")),
         tabPanel("Classic STAR report", br(),
                  actionButton("cp_report", "Copy report"), downloadButton("dl_txt", "Download TXT"),
@@ -469,19 +469,20 @@ server <- function(input, output, session) {
   })
   output$corr_view_picker <- renderUI({
     v <- corr_ok()$vars
-    tagList(selectInput("corr_view", "Plot", c("Heatmap of all pairs" = "heat", "Scatter plot of two variables" = "scatter")),
+    tagList(selectInput("corr_view", "Plot", c("Scatter plot matrix (all pairs)" = "matrix", "Heatmap of all pairs" = "heat", "Scatter plot of two variables" = "scatter")),
             conditionalPanel("input.corr_view == 'scatter'", fluidRow(
               column(6, selectInput("corr_x", "X axis", v, selected = v[1])),
               column(6, selectInput("corr_y", "Y axis", v, selected = v[2])))))
   })
   gg_corr <- reactive({
-    r <- corr_ok(); v <- input$corr_view %||% "heat"
+    r <- corr_ok(); v <- input$corr_view %||% "matrix"
     x <- input$corr_x; y <- input$corr_y
     pair <- if (v == "scatter" && !is.null(x) && !is.null(y) && x %in% r$vars && y %in% r$vars) {
       validate(need(x != y, "Choose two different variables for the scatter plot."))
       c(x, y)
     }
-    star_ggplot_correlation(r, pair, main = input$corr_title, xlab = input$corr_xlab, ylab = input$corr_ylab)
+    star_ggplot_correlation(r, pair, main = input$corr_title, xlab = input$corr_xlab, ylab = input$corr_ylab,
+                            type = if (v == "heat") "heatmap" else "matrix")
   })
   output$corr_plot <- renderPlot(print(gg_corr()))
   output$dl_corr_plot <- plot_download("corr", gg_corr)

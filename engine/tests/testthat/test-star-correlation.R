@@ -45,6 +45,7 @@ test_that("bad input gives clear errors", {
 test_that("plots are ggplot objects", {
   r <- star_correlation(mtcars, c("mpg", "hp", "wt"))
   expect_s3_class(star_ggplot_correlation(r), "ggplot")
+  m <- star_ggplot_correlation(r, type = "matrix"); expect_s3_class(m, "ggplot"); expect_no_error(ggplot2::ggplotGrob(m))
   expect_s3_class(star_ggplot_correlation(r, pair = c("mpg", "wt"), main = "T", xlab = "X", ylab = "Y"), "ggplot")
   expect_error(star_ggplot_correlation(r, pair = c("mpg", "zzz")), "two of")
   f <- tempfile(fileext = ".png"); star_ggsave(star_ggplot_correlation(r), f, dpi = 72)

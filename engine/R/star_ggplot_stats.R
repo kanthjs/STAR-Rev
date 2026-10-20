@@ -6,8 +6,42 @@
 
 .star_stars <- function(p, alpha) ifelse(is.na(p), "", ifelse(p < 0.001, "***", ifelse(p < 0.01, "**", ifelse(p < alpha, "*", ""))))
 
-star_ggplot_correlation <- function(x, pair = NULL, main = NULL, xlab = NULL, ylab = NULL, base_size = 12) {
+## type = "heatmap" (default) or "matrix": a scatter plot matrix with the points below the diagonal, the variable
+## names on it and the coefficient above it. `pair` (two variable names) gives the scatter plot of that pair instead.
+star_ggplot_correlation <- function(x, pair = NULL, main = NULL, xlab = NULL, ylab = NULL, base_size = 12,
+                                    type = c("heatmap", "matrix")) {
+  type <- match.arg(type)
   if (!inherits(x, "star_correlation")) stop("'x' must be a result of star_correlation().", call. = FALSE)
+  if (is.null(pair) && type == "matrix") {
+    v <- x$vars
+    k <- length(v)
+    g <- expand.grid(i = seq_len(k), j = seq_len(k))
+    d <- x$data
+    cells <- do.call(rbind, lapply(seq_len(nrow(g)), function(s) {
+      vx <- v[g$j[s]]; vy <- v[g$i[s]]
+      data.frame(xv = factor(vx, levels = v), yv = factor(vy, levels = v), x = d[[vx]], y = d[[vy]], kind = if (g$i[s] > g$j[s]) "lower" else if (g$i[s] < g$j[s]) "upper" else "diag")
+    }))
+    cells <- cells[stats::complete.cases(cells$x, cells$y), ]
+    mid <- vapply(v, function(z) mean(range(d[[z]], na.rm = TRUE)), 0)
+    up <- g[g$i < g$j, ]
+    lab <- data.frame(xv = factor(v[up$j], levels = v), yv = factor(v[up$i], levels = v), x = mid[up$j], y = mid[up$i],
+                      lab = paste0(formatC(x$r[cbind(up$i, up$j)], format = "f", digits = 2), .star_stars(x$p[cbind(up$i, up$j)], x$alpha)),
+                      r = abs(x$r[cbind(up$i, up$j)]))
+    dg <- data.frame(xv = factor(v, levels = v), yv = factor(v, levels = v), x = mid, y = mid, lab = v)
+    p <- ggplot2::ggplot(cells, ggplot2::aes(x = x, y = y)) +
+      ggplot2::geom_point(data = cells[cells$kind == "lower", ], shape = 21, size = 1.6, fill = "#0072B2", colour = "grey20", alpha = 0.8)
+    if (x$method == "pearson") p <- p + ggplot2::geom_smooth(data = cells[cells$kind == "lower", ], method = "lm", formula = y ~ x, se = FALSE, colour = "#D55E00", linewidth = 0.7)
+    return(p +
+      ggplot2::geom_blank(data = cells[cells$kind != "lower", ]) +
+      ggplot2::geom_text(data = lab, ggplot2::aes(label = lab, size = r), fontface = "bold", show.legend = FALSE) +
+      ggplot2::scale_size(range = c(3.5, 8)) +
+      ggplot2::geom_text(data = dg, ggplot2::aes(label = lab), fontface = "bold", size = 5, colour = "grey25") +
+      ggplot2::facet_grid(yv ~ xv, scales = "free") +
+      ggplot2::labs(x = .star_gg_or(xlab, NULL), y = .star_gg_or(ylab, NULL), title = .star_gg_or(main, paste(x$method_name, "correlation: scatter plot matrix")),
+                    subtitle = sprintf("Above the diagonal: %s (* p < %s, ** p < 0.01, *** p < 0.001)", x$symbol, format(x$alpha))) +
+      star_gg_theme(base_size) + ggplot2::theme(strip.text = ggplot2::element_blank(), panel.border = ggplot2::element_rect(colour = "grey70", fill = NA),
+                                                axis.line = ggplot2::element_blank(), panel.spacing = grid::unit(2, "pt")))
+  }
   if (is.null(pair)) {
     v <- x$vars
     k <- length(v)

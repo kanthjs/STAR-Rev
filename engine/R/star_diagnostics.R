@@ -7,12 +7,9 @@
 ##   - messages : plain-language advice for what to do next
 ## Row numbers refer to the rows of the data frame that was given to star_aov().
 
-star_diagnostics <- function(data, response, treatment, block = NULL, alpha = 0.05,
-                             outlier_cut = 3, suspect_cut = 2) {
-  d <- star_prepare_data(data, response, treatment, block)
-  d <- d[!is.na(d[[response]]), , drop = FALSE]
-  rhs <- paste(c(if (!is.null(block)) paste0("`", block, "`"), paste0("`", treatment, "`", collapse = " * ")), collapse = " + ")
-  fit <- stats::lm(stats::as.formula(paste0("`", response, "` ~ ", rhs)), data = d)
+## Residual checks shared by star_diagnostics() (ANOVA) and star_regression(): outliers, normality, influence.
+## `fit` is an lm fitted to the rows of `d` (no missing response); `label_cols` are shown next to flagged rows.
+.star_resid_checks <- function(fit, d, response, label_cols, alpha, outlier_cut, suspect_cut) {
   n <- nrow(d)
   df_res <- stats::df.residual(fit)
   if (df_res < 1) stop("There are no residual degrees of freedom, so assumptions cannot be checked.")
@@ -29,7 +26,7 @@ star_diagnostics <- function(data, response, treatment, block = NULL, alpha = 0.
   flag <- ifelse(!is.na(a) & a > outlier_cut, "outlier", ifelse(!is.na(a) & a > suspect_cut, "suspect", ""))
   rn <- rownames(d)
   outliers <- data.frame(
-    Row = rn, d[, treatment, drop = FALSE], Value = d[[response]], Fitted = fitted,
+    Row = rn, d[, label_cols, drop = FALSE], Value = d[[response]], Fitted = fitted,
     Residual = res, Studentized = sres, Cook = cook, Flag = flag,
     row.names = NULL, stringsAsFactors = FALSE
   )
@@ -52,6 +49,20 @@ star_diagnostics <- function(data, response, treatment, block = NULL, alpha = 0.
   } else {
     list(test = "Kolmogorov-Smirnov (Lilliefors)", statistic = NA_real_, p = NA_real_, ok = NA)
   }
+
+  list(n = n, res = res, fitted = fitted, sres = sres, cook = cook, flag = flag, rn = rn, outliers = outliers,
+       n_out = n_out, n_sus = n_sus, normality = normality, ks = ks)
+}
+
+star_diagnostics <- function(data, response, treatment, block = NULL, alpha = 0.05,
+                             outlier_cut = 3, suspect_cut = 2) {
+  d <- star_prepare_data(data, response, treatment, block)
+  d <- d[!is.na(d[[response]]), , drop = FALSE]
+  rhs <- paste(c(if (!is.null(block)) paste0("`", block, "`"), paste0("`", treatment, "`", collapse = " * ")), collapse = " + ")
+  fit <- stats::lm(stats::as.formula(paste0("`", response, "` ~ ", rhs)), data = d)
+  ck <- .star_resid_checks(fit, d, response, treatment, alpha, outlier_cut, suspect_cut)
+  n <- ck$n; res <- ck$res; sres <- ck$sres; cook <- ck$cook; flag <- ck$flag; rn <- ck$rn; fitted <- ck$fitted
+  outliers <- ck$outliers; n_out <- ck$n_out; n_sus <- ck$n_sus; normality <- ck$normality; ks <- ck$ks
 
   # ---- homogeneity of variances (Levene, median-centred) ----
   cell <- interaction(d[, treatment, drop = FALSE], drop = TRUE)

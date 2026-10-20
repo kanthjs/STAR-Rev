@@ -1,6 +1,6 @@
 # STAR web prototype (Shinylive)
 
-One screen: ANOVA for a randomized complete block design (`AOVTest`) with mean comparison (LSD / Tukey / Duncan / SNK / Scheffe), copy and download of the output. It runs the recovered STAR engine inside the browser via webR.
+Three screens: analysis of variance (CRD, RCBD, split plot; mean comparison, plots, assumption checks), correlation (Pearson / Spearman / Kendall, heatmap and scatter plots) and linear regression (multiple, quadratic, cubic; diagnostics, prediction). Each has copy and Excel/plot download. It runs the recovered STAR engine inside the browser via webR.
 
 Build and test:
 

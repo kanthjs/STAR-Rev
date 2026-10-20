@@ -75,4 +75,32 @@ testServer(app, {
   # ---- errors are reported, not thrown ----
   run(pw = "LSD", resp = "GrainYield", trt = "GrainYield")
   check(inherits(res(), "star_error"), "bad column choice is reported as an error")
+
+  # ---- correlation screen ----
+  session$setInputs(corr_src = "ex", corr_example = "cars", corr_vars = c("mpg", "hp", "wt"), corr_method = "pearson", corr_alt = "two.sided",
+                    corr_adjust = "none", corr_alpha = "0.05", go_corr = 1)
+  check(round(corr_ok()$r["mpg", "wt"], 4) == -0.8677, "Correlation: r(mpg, wt) = -0.8677 (original STAR)")
+  check(identical(corr_tables()$matrix$mpg, c("1", "-0.776***", "-0.868***")), "Correlation: matrix with significance stars")
+  check(identical(names(corr_tables()$pairs)[c(3, 5)], c("r", "p")) && corr_tables()$pairs$p[1] == "<0.0001", "Correlation: pairs table")
+  p <- output$dl_corr_plot; check(file.exists(p) && file.size(p) > 3000, "Correlation: heatmap png")
+  session$setInputs(corr_view = "2"); check(file.size(output$dl_corr_plot) > 3000, "Correlation: scatter png")
+  x <- output$dl_corr_xlsx; check(identical(openxlsx::getSheetNames(x), c("Correlation (r)", "P values", "N", "Pairs", "Info")), "Correlation: xlsx sheets")
+  session$setInputs(corr_method = "spearman", go_corr = 2)
+  check(!("CI lower" %in% names(corr_tables()$pairs)) && names(corr_tables()$pairs)[3] == "rho", "Correlation: Spearman has rho and no CI")
+  session$setInputs(corr_vars = "mpg", go_corr = 3); check(inherits(corr_res(), "star_error"), "Correlation: one variable is reported as an error")
+  session$setInputs(cp_corr_matrix = 1, cp_corr_pairs = 1, cp_corr_apa = 1)
+
+  # ---- regression screen ----
+  session$setInputs(reg_src = "ex", reg_example = "cars_multi", reg_resp = "mpg", reg_pred = c("wt", "hp"), reg_degree = "1", reg_alpha = "0.05", go_reg = 1)
+  check(round(reg_ok()$anova$F[1], 2) == 69.21 && round(reg_ok()$fit$adj_r2, 4) == 0.8148, "Regression: F = 69.21, adjusted R-squared = 0.8148 (original STAR)")
+  check(identical(reg_tables()$coef$Term, c("(Intercept)", "wt", "hp")) && "VIF" %in% names(reg_tables()$coef), "Regression: coefficient table with VIF")
+  check(file.size(output$dl_reg_plot) > 3000, "Regression: observed vs fitted png")
+  x <- output$dl_reg_xlsx; check(identical(openxlsx::getSheetNames(x), c("Model", "ANOVA", "Coefficients", "Residuals")), "Regression: xlsx sheets")
+  session$setInputs(reg_example = "seeding", reg_resp = "GrainYield", reg_pred = "SeedingRate", reg_degree = "2", go_reg = 2)
+  check(!is.null(reg_ok()$optimum) && reg_ok()$optimum$inside, "Regression: quadratic finds an optimum inside the range")
+  check(file.size(output$dl_reg_plot) > 3000, "Regression: curve png")
+  session$setInputs(reg_newx = "50, 100, 400"); check(identical(reg_predictions()$Extrapolated, c(FALSE, FALSE, TRUE)), "Regression: predictions flag extrapolation")
+  session$setInputs(reg_pred = c("SeedingRate", "GrainYield"), go_reg = 3); check(inherits(reg_res(), "star_error"), "Regression: bad choice is reported as an error")
+  session$setInputs(cp_reg_anova = 1, cp_reg_coef = 1, cp_reg_apa = 1)
+  cat("ok   regression copy buttons ran\n")
 })

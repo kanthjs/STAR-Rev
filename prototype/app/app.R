@@ -62,6 +62,14 @@ html_table <- function(df) {
         tags$tr(lapply(seq_along(df), function(j) tags$td(as.character(df[i, j]), style = al[j])))))))
 }
 
+# size and first rows of the data as read, so that the user can check that the file was understood
+data_preview_ui <- function(d, n = 10) {
+  shown <- head(d, n)
+  shown[] <- lapply(shown, function(v) ifelse(is.na(v), "", as.character(v)))
+  tagList(p(strong(formatC(nrow(d), format = "d", big.mark = ",")), "rows x", strong(ncol(d)), "columns.",
+            if (nrow(d) > n) sprintf("Showing the first %d rows.", n)),
+          html_table(shown))
+}
 # shown while nothing has been run yet
 run_hint <- function(button) div(class = "alert alert-info", sprintf("Choose your data and variables on the left, then press %s.", button))
 # settings changed after the last run: the results on the screen no longer match the controls
@@ -124,7 +132,7 @@ reg_setup <- list(cars_multi = list(file = "example_cars.csv", resp = "mpg", pre
 
 # data source + labels + file export controls shared by the correlation and regression screens
 data_source_ui <- function(p, examples) tagList(
-  radioButtons(paste0(p, "_src"), "Data", c("Built-in example" = "ex", "Upload CSV" = "up")),
+  radioButtons(paste0(p, "_src"), "Data", c("Built-in example" = "ex", "Upload file" = "up")),
   conditionalPanel(sprintf("input.%s_src == 'ex'", p), selectInput(paste0(p, "_example"), "Example", examples)),
   conditionalPanel(sprintf("input.%s_src == 'up'", p), fileInput(paste0(p, "_file"), "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))))
 plot_labels_ui <- function(p) fluidRow(
@@ -150,6 +158,7 @@ corr_ui <- sidebarLayout(
     uiOutput("corr_msg"),
     tabsetPanel(
       tabPanel("Results", br(), uiOutput("corr_results_ui"), br(), conditionalPanel("input.go_corr > 0", downloadButton("dl_corr_xlsx", "Download Excel (.xlsx)"))),
+      tabPanel("Data", br(), uiOutput("corr_data_ui")),
       tabPanel("Plot", br(), uiOutput("corr_view_picker"), plot_labels_ui("corr"), plotOutput("corr_plot", height = "460px"), plot_export_ui("corr")))))
 
 reg_ui <- sidebarLayout(
@@ -163,6 +172,7 @@ reg_ui <- sidebarLayout(
     uiOutput("reg_msg"),
     tabsetPanel(
       tabPanel("Results", br(), uiOutput("reg_results_ui"), br(), conditionalPanel("input.go_reg > 0", downloadButton("dl_reg_xlsx", "Download Excel (.xlsx)"))),
+      tabPanel("Data", br(), uiOutput("reg_data_ui")),
       tabPanel("Plot", br(), plot_labels_ui("reg"), plotOutput("reg_plot", height = "460px"), plot_export_ui("reg")),
       tabPanel("Outliers & assumptions", br(), uiOutput("reg_diag_ui"), plotOutput("reg_diag_plot", height = "420px")),
       tabPanel("Predict", br(), uiOutput("reg_predict_ui")))))
@@ -199,7 +209,7 @@ ui <- navbarPage(
     sidebarPanel(
       radioButtons("design", "Experimental design", c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD",
                                                 "Split plot in RCBD" = "SplitRCBD")),
-      radioButtons("src", "Data", c("Built-in example" = "ex", "Upload CSV" = "up")),
+      radioButtons("src", "Data", c("Built-in example" = "ex", "Upload file" = "up")),
       conditionalPanel("input.src == 'ex'", uiOutput("example_picker")),
       conditionalPanel("input.src == 'up'", fileInput("file", "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))),
       uiOutput("var_pickers"),
@@ -213,19 +223,17 @@ ui <- navbarPage(
       uiOutput("aov_msg"),
       tabsetPanel(
         tabPanel("Results", br(), uiOutput("results_ui"), br(), conditionalPanel("input.go_aov > 0", downloadButton("dl_xlsx", "Download Excel (.xlsx)"))),
+        tabPanel("Data", br(), uiOutput("data_ui")),
         tabPanel("Plot", br(),
                  fluidRow(column(4, radioButtons("plot_style", "Style", c("Classic" = "classic", "ggplot2" = "gg"), inline = TRUE)),
                           column(8, conditionalPanel("input.plot_style == 'gg'", fluidRow(
                             column(6, selectInput("gg_error", "Error bars", c("SE" = "se", "SD" = "sd", "95% CI" = "ci"))),
-                            column(6, br(), checkboxInput("gg_points", "Show observations", TRUE))),
-                            fluidRow(column(4, textInput("gg_title", "Title", placeholder = "(automatic)")),
-                                     column(4, textInput("gg_xlab", "X axis label", placeholder = "(automatic)")),
-                                     column(4, textInput("gg_ylab", "Y axis label", placeholder = "(automatic)")))))),
-                 uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"),
-                 fluidRow(column(4, selectInput("dl_fmt", "File type", c("PNG" = "png", "SVG" = "svg", "PDF" = "pdf"))),
-                          column(4, conditionalPanel("input.dl_fmt == 'png'", selectInput("dl_dpi", "Resolution", c("Screen (120 dpi)" = 120, "Print (300 dpi)" = 300, "High (600 dpi)" = 600), selected = 300))),
-                          column(4, br(), conditionalPanel("input.go_aov > 0", downloadButton("dl_png", "Download plot"))))),
-        tabPanel("Outliers & assumptions", br(), uiOutput("diag_ui"), plotOutput("diag_plot", height = "380px")),
+                            column(6, br(), checkboxInput("gg_points", "Show observations", TRUE)))))),
+                 plot_labels_ui("gg"),
+                 uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"), plot_export_ui("aov")),
+        tabPanel("Outliers & assumptions", br(),
+                 radioButtons("diag_style", "Plot style", c("Classic" = "classic", "ggplot2" = "gg"), inline = TRUE),
+                 uiOutput("diag_ui"), plotOutput("diag_plot", height = "380px")),
         tabPanel("Classic STAR report", br(),
                  actionButton("cp_report", "Copy report"), downloadButton("dl_txt", "Download TXT"),
                  verbatimTextOutput("report"))
@@ -254,6 +262,7 @@ server <- function(input, output, session) {
     tryCatch(star_read_table(input$file$datapath, input$file$name),
              error = function(e) { showNotification(paste("Could not read the file:", conditionMessage(e)), type = "error"); req(FALSE) })
   })
+  output$data_ui <- renderUI(data_preview_ui(dat()))
   output$var_pickers <- renderUI({
     nm <- names(dat()); s <- setup()
     tagList(
@@ -319,17 +328,17 @@ server <- function(input, output, session) {
       if (length(r$data_notes)) div(class = "alert alert-warning", strong("Data checks"),
                                     tags$ul(lapply(r$data_notes, tags$li))),
       div(class = if (r$significant || r$interaction_significant) "alert alert-success" else "alert alert-info", r$summary),
-      h4("APA-style report"), actionButton("cp_apa", "Copy"), div(class = "well well-sm", lapply(r$apa, p)),
       h4("Analysis of variance"), actionButton("cp_anova", "Copy table"), html_table(tb$anova),
-      lapply(names(tb$means), function(f) tagList(h4(paste("Means of", f)), html_table(tb$means[[f]]))),
       actionButton("cp_means", "Copy means tables"),
+      lapply(names(tb$means), function(f) tagList(h4(paste("Means of", f)), html_table(tb$means[[f]]))),
       if (!is.null(tb$cells)) tagList(h4(paste("Cell means:", paste(r$factors, collapse = " x "))), html_table(tb$cells)),
       lapply(names(tb$simple), function(nm) {
         sm <- r$simple[[nm]]
         tagList(h4(sprintf("Comparison of %s at each level of %s (%s test)", attr(sm, "compare"), attr(sm, "at"), attr(sm, "test"))),
                 html_table(tb$simple[[nm]]),
                 p(class = "text-muted", "Means with the same letter (within a column) are not significantly different."))
-      })
+      }),
+      h4("APA-style report"), actionButton("cp_apa", "Copy"), div(class = "well well-sm", lapply(r$apa, p))
     )
   })
 
@@ -344,7 +353,8 @@ server <- function(input, output, session) {
   gg_means <- reactive(star_ggplot_means(ok(), plot_effect(), data = if (isTRUE(input$gg_points)) used_data(), error = input$gg_error %||% "se",
                                                 main = input$gg_title, xlab = input$gg_xlab, ylab = input$gg_ylab))
   draw_means <- function() {
-    if (use_gg()) print(gg_means()) else star_plot_means(ok(), sub("_line$", "", plot_effect()))
+    if (use_gg()) print(gg_means())
+    else star_plot_means(ok(), sub("_line$", "", plot_effect()), main = input$gg_title, xlab = input$gg_xlab, ylab = input$gg_ylab)
   }
   output$means_plot <- renderPlot(draw_means())
   output$diag_ui <- renderUI({
@@ -358,7 +368,7 @@ server <- function(input, output, session) {
         tagList(h4("Flagged observations"), p(class = "text-muted", "Row = row number in your data. |Studentized residual| > 3 = outlier, 2 to 3 = suspect."), html_table(o))
       })
   })
-  output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); if (use_gg()) print(star_ggplot_diagnostics(dg)) else star_plot_diagnostics(dg) })
+  output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); if (identical(input$diag_style, "gg")) print(star_ggplot_diagnostics(dg)) else star_plot_diagnostics(dg) })
   report_text <- reactive(star_report(ok())) |> bindCache(ok())
   output$report <- renderText(paste(report_text(), collapse = "\n"))
 
@@ -379,12 +389,12 @@ server <- function(input, output, session) {
     sheets
   })
   output$dl_xlsx <- downloadHandler("star_anova.xlsx", function(file) openxlsx::write.xlsx(xlsx_sheets(), file))
-  output$dl_png <- downloadHandler(function() paste0("star_means_plot.", input$dl_fmt), function(file) {
-    fmt <- input$dl_fmt %||% "png"; dpi <- as.numeric(input$dl_dpi %||% 300)
+  output$dl_aov_plot <- downloadHandler(function() paste0("star_means_plot.", input$aov_fmt), function(file) {
+    fmt <- input$aov_fmt %||% "png"; dpi <- as.numeric(input$aov_dpi %||% 300)
     if (use_gg()) { star_ggsave(gg_means(), file, width = 8, height = 5.6, dpi = dpi); return(invisible()) }
     if (fmt == "png") png(file, width = 8 * dpi, height = 5.6 * dpi, res = dpi)
     else if (fmt == "svg") svg(file, width = 8, height = 5.6) else pdf(file, width = 8, height = 5.6)
-    on.exit(dev.off()); star_plot_means(ok(), sub("_line$", "", plot_effect()))
+    on.exit(dev.off()); draw_means()
   })
   output$dl_txt <- downloadHandler("star_anova_report.txt", function(file) writeLines(report_text(), file))
 
@@ -418,6 +428,7 @@ server <- function(input, output, session) {
 
   # ---- correlation ----
   corr_dat <- use_data("corr", corr_setup)
+  output$corr_data_ui <- renderUI(data_preview_ui(corr_dat()))
   output$corr_pickers <- renderUI({
     nm <- numeric_cols(corr_dat()); s <- example_of("corr", corr_setup)
     selectizeInput("corr_vars", "Variables (two or more)", nm, multiple = TRUE, selected = if (!is.null(s)) intersect(s$vars, nm) else head(nm, 6))
@@ -472,6 +483,7 @@ server <- function(input, output, session) {
 
   # ---- regression ----
   reg_dat <- use_data("reg", reg_setup)
+  output$reg_data_ui <- renderUI(data_preview_ui(reg_dat()))
   output$reg_pickers <- renderUI({
     nm <- numeric_cols(reg_dat()); s <- example_of("reg", reg_setup)
     resp <- if (!is.null(s)) s$resp else tail(nm, 1)

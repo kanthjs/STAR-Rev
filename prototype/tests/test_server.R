@@ -57,14 +57,14 @@ testServer(app, {
   check(is.null(r$report) && grepl("Split Plot in Randomized Complete Block", output$report), "Split plot: classic report built on demand")
   run(pw = "HSD"); run(pw = "auto")
   check(identical(ok(), r), "Split plot: same settings give the same (cached) result")
-  session$setInputs(plot_effect = "interaction"); p0 <- output$dl_png; check(file.size(p0) > 5000, "Split plot: interaction png")
+  session$setInputs(plot_effect = "interaction"); p0 <- output$dl_aov_plot; check(file.size(p0) > 5000, "Split plot: interaction png")
 
   # ---- downloads and copy (two-factor result is selected) ----
   session$setInputs(design = "RCBD", example = "rcbd2", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep"); run(pw = "auto")
   x <- output$dl_xlsx; check(file.exists(x) && file.size(x) > 3000, "xlsx download created")
   sh <- openxlsx::getSheetNames(x); check(identical(sh, c("ANOVA", "Means", "Cell means", "Simple effects", "Info")), "xlsx sheets for a two-factor result")
-  session$setInputs(plot_effect = "interaction"); p1 <- output$dl_png; check(file.exists(p1) && file.size(p1) > 5000, "png (interaction plot)")
-  session$setInputs(plot_effect = "Nitrogen"); p2 <- output$dl_png; check(file.exists(p2) && file.size(p2) > 5000, "png (main effect plot)")
+  session$setInputs(plot_effect = "interaction"); p1 <- output$dl_aov_plot; check(file.exists(p1) && file.size(p1) > 5000, "png (interaction plot)")
+  session$setInputs(plot_effect = "Nitrogen"); p2 <- output$dl_aov_plot; check(file.exists(p2) && file.size(p2) > 5000, "png (main effect plot)")
   t <- output$dl_txt; check(length(readLines(t)) > 40, "txt report download")
   session$setInputs(cp_anova = 1, cp_means = 1, cp_report = 1)
   cat("ok   copy buttons ran\n")

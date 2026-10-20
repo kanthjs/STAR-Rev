@@ -226,7 +226,8 @@ star_report <- function(x) {
 ##   effect = NULL / a factor name : bars for the means of that factor
 ##   effect = "interaction"        : grouped bars (two-factor results); groups = the second factor,
 ##                                   bars = the first factor, letters = first factor compared within each group
-star_plot_means <- function(x, effect = NULL, main = NULL, col = NULL) {
+star_plot_means <- function(x, effect = NULL, main = NULL, col = NULL, xlab = NULL, ylab = NULL) {
+  ylab_txt <- .star_gg_or(ylab, paste("Mean", x$response))
   op <- par(mar = c(5, 5, 3, 1))
   on.exit(par(op))
   if (identical(effect, "interaction") && !is.null(x$cells)) {
@@ -239,8 +240,8 @@ star_plot_means <- function(x, effect = NULL, main = NULL, col = NULL) {
     top <- max(mat + se, na.rm = TRUE)
     mid <- barplot(mat,
       beside = TRUE, col = pal, border = NA, ylim = c(0, top * 1.18),
-      xlab = f2, ylab = paste("Mean", x$response),
-      main = if (is.null(main)) paste("Mean", x$response, "by", f1, "and", f2) else main,
+      xlab = .star_gg_or(xlab, f2), ylab = ylab_txt,
+      main = .star_gg_or(main, paste("Mean", x$response, "by", f1, "and", f2)),
       legend.text = rownames(mat), args.legend = list(title = f1, x = "topright", bty = "n", cex = 0.8)
     )
     arrows(mid, mat - se, mid, mat + se, angle = 90, code = 3, length = 0.04)
@@ -271,13 +272,13 @@ star_plot_means <- function(x, effect = NULL, main = NULL, col = NULL) {
   # many or long level names would overlap and base R then drops some of them: turn them vertical and make room
   lab <- as.character(m$Treatment)
   vertical <- length(lab) > 4 || max(nchar(lab)) > 8
-  if (vertical) par(mar = c(min(12, 4 + 0.5 * max(nchar(lab))), 5, 3, 1))
+  if (vertical) par(mar = c(min(12, 3.5 + 0.4 * max(nchar(lab))), 5, 3, 1))
   mid <- barplot(m$Mean,
     names.arg = lab, las = if (vertical) 2 else 1, col = if (is.null(col)) "#4C78A8" else col, border = NA, ylim = c(0, top * 1.15),
-    xlab = if (vertical) "" else f, ylab = paste("Mean", x$response),
-    main = if (is.null(main)) paste("Mean", x$response, "by", f) else main
+    xlab = if (vertical) "" else .star_gg_or(xlab, f), ylab = ylab_txt,
+    main = .star_gg_or(main, paste("Mean", x$response, "by", f))
   )
-  if (vertical) mtext(f, side = 1, line = par("mar")[1] - 1.2)
+  if (vertical) mtext(.star_gg_or(xlab, f), side = 1, line = par("mar")[1] - 1.2)
   arrows(mid, m$Mean - m$SE, mid, m$Mean + m$SE, angle = 90, code = 3, length = 0.05)
   if (has_letters) text(mid, m$Mean + m$SE, labels = m$Group, pos = 3, cex = 1.1)
   note <- if (has_letters) {

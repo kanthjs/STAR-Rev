@@ -135,10 +135,13 @@ data_source_ui <- function(p, examples) tagList(
   radioButtons(paste0(p, "_src"), "Data", c("Built-in example" = "ex", "Upload file" = "up")),
   conditionalPanel(sprintf("input.%s_src == 'ex'", p), selectInput(paste0(p, "_example"), "Example", examples)),
   conditionalPanel(sprintf("input.%s_src == 'up'", p), fileInput(paste0(p, "_file"), "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))))
-plot_labels_ui <- function(p) fluidRow(
-  column(4, textInput(paste0(p, "_title"), "Title", placeholder = "(automatic)")),
-  column(4, textInput(paste0(p, "_xlab"), "X axis label", placeholder = "(automatic)")),
-  column(4, textInput(paste0(p, "_ylab"), "Y axis label", placeholder = "(automatic)")))
+# the label boxes are folded away until wanted, so that the plot comes first on a small screen
+plot_labels_ui <- function(p) tags$details(class = "plot-labels",
+  tags$summary("Title and axis labels (optional)"),
+  fluidRow(
+    column(4, textInput(paste0(p, "_title"), "Title", placeholder = "(automatic)")),
+    column(4, textInput(paste0(p, "_xlab"), "X axis label", placeholder = "(automatic)")),
+    column(4, textInput(paste0(p, "_ylab"), "Y axis label", placeholder = "(automatic)"))))
 plot_export_ui <- function(p) fluidRow(
   column(4, selectInput(paste0(p, "_fmt"), "File type", c("PNG" = "png", "SVG" = "svg", "PDF" = "pdf"))),
   column(4, conditionalPanel(sprintf("input.%s_fmt == 'png'", p),
@@ -165,7 +168,8 @@ reg_ui <- sidebarLayout(
   sidebarPanel(
     data_source_ui("reg", reg_examples),
     uiOutput("reg_pickers"),
-    radioButtons("reg_degree", "Shape (one predictor only)", c("Straight line" = "1", "Quadratic (curve with a peak)" = "2", "Cubic" = "3"), inline = TRUE),
+    conditionalPanel("!input.reg_pred || input.reg_pred.length <= 1",
+      radioButtons("reg_degree", "Shape of the relationship", c("Straight line" = "1", "Quadratic (curve with a peak)" = "2", "Cubic" = "3"), inline = TRUE)),
     selectInput("reg_alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
     actionButton("go_reg", "Run regression", class = "btn-primary")),
   mainPanel(
@@ -204,7 +208,10 @@ Shiny.addCustomMessageHandler('copy_text', function(msg) {
 
 ui <- navbarPage(
   "STAR (prototype)",
-  header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML(".btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }"))),
+  header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML(".btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }
+    details.plot-labels { margin-bottom: 12px; } details.plot-labels summary { cursor: pointer; color: #337ab7; margin-bottom: 8px; }
+    html.shiny-busy body::after { content: 'Calculating...'; position: fixed; top: 10px; right: 14px; z-index: 9999; padding: 4px 12px;
+                                  border-radius: 4px; background: #2c3e50; color: #fff; font-size: 13px; }"))),
   tabPanel("Analysis of variance", sidebarLayout(
     sidebarPanel(
       radioButtons("design", "Experimental design", c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD",
@@ -213,9 +220,10 @@ ui <- navbarPage(
       conditionalPanel("input.src == 'ex'", uiOutput("example_picker")),
       conditionalPanel("input.src == 'up'", fileInput("file", "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))),
       uiOutput("var_pickers"),
-      selectInput("pw", "Mean comparison (letters shown when the effect is significant)",
+      selectInput("pw", "Mean comparison",
                   c("Automatic: LSD if <= 5 levels, else Tukey" = "auto", "LSD" = "LSD", "Tukey HSD" = "HSD",
                     "Duncan" = "duncan", "SNK" = "SNK", "Scheffe" = "scheffe", "Bonferroni" = "bonferroni")),
+      helpText("Letters are shown when the effect is significant."),
       selectInput("alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
       actionButton("go_aov", "Run ANOVA", class = "btn-primary")
     ),
@@ -344,8 +352,9 @@ server <- function(input, output, session) {
 
   output$plot_picker <- renderUI({
     r <- ok()
-    ch <- c(setNames(r$factors, paste("Means of", r$factors)), if (!is.null(r$cells)) c("Interaction (grouped bars)" = "interaction", c("Interaction (lines; ggplot2 style)" = "interaction_line")))
-    if (length(ch) > 1) selectInput("plot_effect", "Plot", ch, selected = if (r$interaction_significant) "interaction" else r$factors[1])
+    ch <- c(setNames(r$factors, paste("Means of", r$factors)), if (!is.null(r$cells)) c("Interaction (grouped bars)" = "interaction", if (use_gg()) c("Interaction (lines)" = "interaction_line")))
+    cur <- isolate(input$plot_effect)   # keep the choice when the style is switched
+    if (length(ch) > 1) selectInput("plot_effect", "Plot", ch, selected = if (!is.null(cur) && cur %in% ch) cur else if (r$interaction_significant) "interaction" else r$factors[1])
   })
   plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, if (!is.null(r$cells)) c("interaction", "interaction_line")))) r$factors[1] else pe })
   use_gg <- reactive(identical(input$plot_style, "gg"))
@@ -459,12 +468,19 @@ server <- function(input, output, session) {
       h4("APA-style report"), actionButton("cp_corr_apa", "Copy"), div(class = "well well-sm", lapply(r$apa, p)))
   })
   output$corr_view_picker <- renderUI({
-    z <- corr_ok()$pairs
-    selectInput("corr_view", "Plot", c("Heatmap of all pairs" = "heat", setNames(seq_len(nrow(z)), paste("Scatter:", z$Variable1, "and", z$Variable2))))
+    v <- corr_ok()$vars
+    tagList(selectInput("corr_view", "Plot", c("Heatmap of all pairs" = "heat", "Scatter plot of two variables" = "scatter")),
+            conditionalPanel("input.corr_view == 'scatter'", fluidRow(
+              column(6, selectInput("corr_x", "X axis", v, selected = v[1])),
+              column(6, selectInput("corr_y", "Y axis", v, selected = v[2])))))
   })
   gg_corr <- reactive({
     r <- corr_ok(); v <- input$corr_view %||% "heat"
-    pair <- if (v == "heat" || is.na(suppressWarnings(as.integer(v))) || as.integer(v) > nrow(r$pairs)) NULL else unlist(r$pairs[as.integer(v), c("Variable1", "Variable2")])
+    x <- input$corr_x; y <- input$corr_y
+    pair <- if (v == "scatter" && !is.null(x) && !is.null(y) && x %in% r$vars && y %in% r$vars) {
+      validate(need(x != y, "Choose two different variables for the scatter plot."))
+      c(x, y)
+    }
     star_ggplot_correlation(r, pair, main = input$corr_title, xlab = input$corr_xlab, ylab = input$corr_ylab)
   })
   output$corr_plot <- renderPlot(print(gg_corr()))
@@ -498,7 +514,7 @@ server <- function(input, output, session) {
   observeEvent(input$reg_example, { s <- reg_setup[[input$reg_example]]; if (!is.null(s)) updateRadioButtons(session, "reg_degree", selected = s$degree) })
   reg_res <- reactive({
     req(input$reg_resp, input$reg_pred)
-    tryCatch(star_regression(reg_dat(), input$reg_resp, input$reg_pred, degree = as.integer(input$reg_degree), alpha = as.numeric(input$reg_alpha)), error = as_error)
+    tryCatch(star_regression(reg_dat(), input$reg_resp, input$reg_pred, degree = if (length(input$reg_pred) == 1) as.integer(input$reg_degree) else 1L, alpha = as.numeric(input$reg_alpha)), error = as_error)
   }) |> bindEvent(input$go_reg)
   reg_ok <- reactive({ r <- reg_res(); req(!inherits(r, "star_error")); r })
   reg_stale <- stale_flag("go_reg", reactive(list(input$reg_src, input$reg_example, input$reg_file$name, input$reg_resp, input$reg_pred,

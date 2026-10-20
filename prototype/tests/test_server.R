@@ -83,7 +83,7 @@ testServer(app, {
   check(identical(corr_tables()$matrix$mpg, c("1", "-0.776***", "-0.868***")), "Correlation: matrix with significance stars")
   check(identical(names(corr_tables()$pairs)[c(3, 5)], c("r", "p")) && corr_tables()$pairs$p[1] == "<0.0001", "Correlation: pairs table")
   p <- output$dl_corr_plot; check(file.exists(p) && file.size(p) > 3000, "Correlation: heatmap png")
-  session$setInputs(corr_view = "2"); check(file.size(output$dl_corr_plot) > 3000, "Correlation: scatter png")
+  session$setInputs(corr_view = "scatter", corr_x = "mpg", corr_y = "wt"); check(file.size(output$dl_corr_plot) > 3000, "Correlation: scatter png")
   x <- output$dl_corr_xlsx; check(identical(openxlsx::getSheetNames(x), c("Correlation (r)", "P values", "N", "Pairs", "Info")), "Correlation: xlsx sheets")
   session$setInputs(corr_method = "spearman", go_corr = 2)
   check(!("CI lower" %in% names(corr_tables()$pairs)) && names(corr_tables()$pairs)[3] == "rho", "Correlation: Spearman has rho and no CI")

@@ -81,7 +81,7 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
             else "Effect not significant"
     return(p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
              ggplot2::labs(x = .star_gg_or(xlab, f), y = y_lab, title = .star_gg_or(main, paste("Mean", x$response, "by", f)),
-                           subtitle = sprintf("Bars: %s%s. %s", .star_gg_err_label[[error]], if (!is.null(raw)) "; circles: observations" else "", note)) +
+                           subtitle = paste(strwrap(sprintf("Bars: %s%s. %s", .star_gg_err_label[[error]], if (!is.null(raw)) "; circles: observations" else "", note), 70), collapse = "\n")) +
              star_gg_theme(base_size) + .star_gg_xlab_theme(levels(m$Treatment)))
   }
 
@@ -130,7 +130,7 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
       ggplot2::scale_colour_manual(values = cols, name = f1)
   }
   p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
-    ggplot2::labs(x = .star_gg_or(xlab, f2), y = y_lab, title = ttl, subtitle = sub) +
+    ggplot2::labs(x = .star_gg_or(xlab, f2), y = y_lab, title = ttl, subtitle = paste(strwrap(sub, 70), collapse = "\n")) +
     star_gg_theme(base_size) + .star_gg_xlab_theme(levels(cd$x))
 }
 

@@ -9,6 +9,13 @@ for (f in sort(list.files("star", pattern = "[.]R$", full.names = TRUE))) source
 
 # ---- helpers ---------------------------------------------------------------------------------------------------
 `%||%` <- function(a, b) if (is.null(a)) b else a
+# version of this build (written by scripts/build_app.R); shown in the About tab and written to every result file
+app_version <- local({
+  v <- if (file.exists("VERSION")) readLines("VERSION") else character()
+  get <- function(k) sub(paste0("^", k, "="), "", grep(paste0("^", k, "="), v, value = TRUE)[1])
+  c(version = get("version"), commit = get("commit"), built = get("built"))
+})
+version_label <- function() { v <- app_version; if (anyNA(v)) "development build" else sprintf("v%s (%s, built %s)", v[["version"]], v[["commit"]], v[["built"]]) }
 fmt_p <- function(p) ifelse(is.na(p), "", ifelse(p < 0.0001, "<0.0001", formatC(p, format = "f", digits = 4)))
 fmt_n <- function(x, digits = 2) ifelse(is.na(x), "", formatC(x, format = "f", digits = digits, big.mark = ","))
 
@@ -206,6 +213,17 @@ Shiny.addCustomMessageHandler('copy_text', function(msg) {
   } else { fallback(); }
 });"
 
+about_ui <- div(class = "container", style = "max-width: 800px;",
+  h3("About this app"),
+  p("A web version of STAR (Statistical Tools for Agricultural Research) from the International Rice Research Institute (IRRI), used with IRRI's permission. It runs the recovered STAR 2.0.2 R code in your own browser."),
+  div(class = "alert alert-warning", strong("Prototype."), "Results were checked against STAR 2.0.2 on the built-in examples, but this version is still under development. Check important results (for example before publishing) with another program or a statistician, and report anything that looks wrong."),
+  h4("Your data"), p("Your files are read and analysed inside your browser. They are not uploaded to any server."),
+  h4("Version"), p(code(version_label()), "Please quote this when you report a problem."),
+  h4("How to cite"), p("International Rice Research Institute (IRRI). STAR: Statistical Tools for Agricultural Research, version 2.0.2, and this web version", version_label(), "(https://github.com/kanthjs/STAR-Rev)."),
+  h4("Report a problem"), p(tags$a(href = "https://github.com/kanthjs/STAR-Rev/issues", target = "_blank", "GitHub Issues"), " (include the version above, the analysis you ran and, if you can, a small example file)."),
+  h4("License"), p("GNU General Public License, version 2 or later. Source code: ", tags$a(href = "https://github.com/kanthjs/STAR-Rev", target = "_blank", "github.com/kanthjs/STAR-Rev"), ".")
+)
+
 ui <- navbarPage(
   "STAR (prototype)",
   header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML(".btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }
@@ -249,7 +267,8 @@ ui <- navbarPage(
     )
   )),
   tabPanel("Correlation", corr_ui),
-  tabPanel("Regression", reg_ui)
+  tabPanel("Regression", reg_ui),
+  tabPanel("About", about_ui)
 )
 
 # ---- server ----------------------------------------------------------------------------------------------------
@@ -389,8 +408,8 @@ server <- function(input, output, session) {
     if (length(r$simple)) sheets$`Simple effects` <- do.call(rbind, lapply(names(r$simple), function(nm) {
       sm <- r$simple[[nm]]; data.frame(Comparison = nm, setNames(sm[c(attr(sm, "at"), attr(sm, "compare"), "Mean", "N", "SE", "Group")], c("At level", "Level", "Mean", "N", "SE", "Group")), row.names = NULL)
     }))
-    sheets$Info <- data.frame(Item = c("Design", "Response", "Treatment factor(s)", "Block", "Mean comparison", "Alpha", "Grand mean", "CV (%)", "Summary", "Data checks"),
-                              Value = c(r$design, r$response, paste(r$factors, collapse = ", "), if (is.null(r$block)) "-" else r$block,
+    sheets$Info <- data.frame(Item = c("App version", "Design", "Response", "Treatment factor(s)", "Block", "Mean comparison", "Alpha", "Grand mean", "CV (%)", "Summary", "Data checks"),
+                              Value = c(version_label(), r$design, r$response, paste(r$factors, collapse = ", "), if (is.null(r$block)) "-" else r$block,
                                         if (r$test == "auto") "auto (LSD if <= 5 levels, else HSD)" else r$test, r$alpha,
                                         round(r$grand_mean, 4),
                                         if (is.null(r$cv_a)) round(r$cv, 2) else sprintf("CV(a) = %.2f, CV(b) = %.2f", r$cv_a, r$cv_b), r$summary,
@@ -405,7 +424,7 @@ server <- function(input, output, session) {
     else if (fmt == "svg") svg(file, width = 8, height = 5.6) else pdf(file, width = 8, height = 5.6)
     on.exit(dev.off()); draw_means()
   })
-  output$dl_txt <- downloadHandler("star_anova_report.txt", function(file) writeLines(report_text(), file))
+  output$dl_txt <- downloadHandler("star_anova_report.txt", function(file) writeLines(c(paste("STAR web app", version_label()), "", report_text()), file))
 
   observeEvent(input$cp_anova, session$sendCustomMessage("copy_text", list(what = "ANOVA table", text = tsv(tables()$anova))))
   observeEvent(input$cp_means, session$sendCustomMessage("copy_text", list(what = "Means tables", text = paste(
@@ -490,8 +509,8 @@ server <- function(input, output, session) {
     r <- corr_ok(); tb <- corr_tables()
     mat <- function(m) data.frame(Variable = r$vars, m, check.names = FALSE, row.names = NULL)
     openxlsx::write.xlsx(list(`Correlation (r)` = mat(r$r), `P values` = mat(r$p), N = mat(r$n), Pairs = r$pairs,
-                              Info = data.frame(Item = c("Method", "Alternative", "Alpha", "P adjustment", "Summary", "Data checks"),
-                                                Value = c(r$method_name, r$alternative, r$alpha, r$adjust, r$summary,
+                              Info = data.frame(Item = c("App version", "Method", "Alternative", "Alpha", "P adjustment", "Summary", "Data checks"),
+                                                Value = c(version_label(), r$method_name, r$alternative, r$alpha, r$adjust, r$summary,
                                                           if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none"))), file)
   })
   copy_button("cp_corr_matrix", "Correlation matrix", function() tsv(corr_tables()$matrix))
@@ -574,8 +593,8 @@ server <- function(input, output, session) {
   }, align = "r")
   output$dl_reg_xlsx <- downloadHandler("star_regression.xlsx", function(file) {
     r <- reg_ok(); dg <- r$diagnostics
-    sheets <- list(Model = data.frame(Item = c("Response", "Predictor(s)", "Shape", "Equation", "Summary", "Data checks", names(unlist(r$fit))),
-                                      Value = c(r$response, paste(r$predictors, collapse = ", "), c("line", "quadratic", "cubic")[r$degree], r$equation, r$summary,
+    sheets <- list(Model = data.frame(Item = c("App version", "Response", "Predictor(s)", "Shape", "Equation", "Summary", "Data checks", names(unlist(r$fit))),
+                                      Value = c(version_label(), r$response, paste(r$predictors, collapse = ", "), c("line", "quadratic", "cubic")[r$degree], r$equation, r$summary,
                                                 if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none", unlist(r$fit))),
                    ANOVA = r$anova, Coefficients = r$coefficients)
     if (!is.null(dg)) sheets$Residuals <- dg$residuals

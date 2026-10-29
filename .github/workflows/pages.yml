@@ -3,7 +3,7 @@ name: Deploy prototype to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ["prototype/app/**", "engine/R/**", "scripts/build_app.R", ".github/workflows/pages.yml"]
+    paths: ["prototype/**", "engine/**", "scripts/build_app.R", ".github/workflows/pages.yml", "CHANGELOG.md"]
   workflow_dispatch:
 
 permissions:
@@ -24,9 +24,13 @@ jobs:
         with:
           use-public-rspm: true
       - name: Install shiny and shinylive
-        run: Rscript -e 'install.packages(c("shiny", "shinylive"))'
+        run: Rscript -e 'install.packages(c("shiny", "shinylive", "ggplot2", "openxlsx", "svglite", "lattice"))'
       - name: Copy engine into the app
         run: Rscript scripts/build_app.R
+        env:
+          STAR_APP_VERSION: 0.1.${{ github.run_number }}
+      - name: Test the app (deploy stops if a test fails)
+        run: Rscript prototype/tests/test_server.R
       - name: Export Shinylive site
         run: Rscript -e 'shinylive::export("prototype/app", "_site")'
       - uses: actions/upload-pages-artifact@v3

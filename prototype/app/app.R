@@ -23,7 +23,7 @@ app_version <- local({
   c(version = get("version"), commit = get("commit"), built = get("built"))
 })
 version_label <- function() { v <- app_version; if (anyNA(v)) "development build" else sprintf("v%s (%s, built %s)", v[["version"]], v[["commit"]], v[["built"]]) }
-methods_sentence <- function(gg) sprintf("Data were analysed with %s (web app %s) running R %s.%s in the browser, using routines recovered from IRRI STAR 2.0.2. Analysis of variance used aov(); means were compared with the agricolae package (LSD, Tukey HSD, Duncan, SNK, Scheffe, Bonferroni); correlations used cor.test(); regression used lm(); residual normality used the Shapiro-Wilk test and the Lilliefors test (nortest); constant variance used the Breusch-Pagan test (lmtest); graphics used ggplot2 %s. See the references below.", app_name, version_label(), R.version$major, R.version$minor, gg)
+methods_sentence <- function(gg) sprintf("Data were analysed with %s (web app %s) running R %s.%s in the browser, using routines recovered from IRRI STAR 2.0.2. Analysis of variance used aov(); means were compared with the agricolae package (LSD, Tukey HSD, Duncan); correlations used cor.test(); regression used lm(); residual normality used the Shapiro-Wilk test and the Lilliefors test (nortest); constant variance used the Breusch-Pagan test (lmtest); graphics used ggplot2 %s. See the references below.", app_name, version_label(), R.version$major, R.version$minor, gg)
 # packages whose results or tools appear in the output; their references are built from each package's own citation()
 cited_packages <- c("agricolae", "nortest", "lmtest", "ggplot2", "readxl", "writexl")
 package_refs <- function() {
@@ -276,9 +276,9 @@ ui <- navbarPage(
       uiOutput("var_pickers"),
       selectInput("pw", "Mean comparison",
                   c("Automatic: LSD if <= 5 levels, else Tukey" = "auto", "LSD" = "LSD", "Tukey HSD" = "HSD",
-                    "Duncan" = "duncan", "SNK" = "SNK", "Scheffe" = "scheffe", "Bonferroni" = "bonferroni")),
+                    "Duncan (DMRT)" = "duncan")),
       helpText("Letters are shown when the effect is significant."),
-      help_box("What does this mean?", p(strong("CRD:"), "treatments were assigned completely at random, no blocks."), p(strong("RCBD:"), "plots were grouped into blocks (replications) of similar conditions and every treatment appears once in each block."), p(strong("Split plot:"), "one factor (main plot) is applied to large plots and a second factor (sub plot) within each."), p(strong("Means comparison:"), "LSD is the least strict; Tukey is safer when there are many levels because it controls the chance of a false difference among all pairs. Means sharing a letter are not significantly different.")),
+      help_box("What does this mean?", p(strong("CRD:"), "treatments were assigned completely at random, no blocks."), p(strong("RCBD:"), "plots were grouped into blocks (replications) of similar conditions and every treatment appears once in each block."), p(strong("Split plot:"), "one factor (main plot) is applied to large plots and a second factor (sub plot) within each."), p(strong("Means comparison:"), "LSD is the least strict, Duncan (DMRT) is in between, and Tukey HSD is the strictest: it is the safest when there are many levels because it controls the chance of a false difference among all pairs. Means sharing a letter are not significantly different.")),
       selectInput("alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
       actionButton("go_aov", "Run ANOVA", class = "btn-primary")
     ),
@@ -322,7 +322,7 @@ server <- function(input, output, session) {
       h4("References"), tags$ul(lapply(package_refs(), tags$li)), actionButton("cp_refs", "Copy references"),
       h4("Where each result comes from"),
       html_table(data.frame(Result = c("ANOVA table (CRD, RCBD, split plot)", "Means comparison letters", "Correlation and p values", "Regression, ANOVA and coefficients", "Normality and variance checks, outliers", "Plots"),
-                            `Computed by` = c("R stats::aov", "agricolae (LSD.test, HSD.test, duncan.test, SNK.test, scheffe.test)", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test, nortest::lillie.test, lmtest::bptest, studentized residuals from stats", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
+                            `Computed by` = c("R stats::aov", "agricolae (LSD.test, HSD.test, duncan.test)", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test, nortest::lillie.test, lmtest::bptest, studentized residuals from stats", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
       p(class = "text-muted", sprintf("This session: %s, ggplot2 %s.", R.version.string, gg_version())))
   })
   observeEvent(input$cp_refs, session$sendCustomMessage("copy_text", list(what = "References", text = paste(package_refs(), collapse = "\n\n"))))

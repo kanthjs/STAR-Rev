@@ -12,3 +12,4 @@ Changes to the STAR web app that can affect results are marked **(results)**. Th
 - The mean comparison choices in the app are limited to LSD, Tukey HSD and Duncan (DMRT), plus Automatic (SNK, Scheffe and Bonferroni remain available in the R engine).
 - **(results)** Scheffe letters were wrong in earlier builds: the alpha chosen in the app was ignored (always 0.05) and the letters were as for Tukey's test. Fixed in the tables (via agricolae) and in the classic STAR report (the recovered code used F instead of sqrt((k-1)F) as the critical value). Re-run any Scheffe comparison made before this version.
 - **(results)** With unbalanced data, the N column shows each group's real count instead of the harmonic mean; Tukey uses the Tukey-Kramer method when group sizes differ.
+- Methods page now explains what each analysis does (models for CRD, RCBD and split plot, means comparison, assumption checks, correlation, regression) with the matching references.

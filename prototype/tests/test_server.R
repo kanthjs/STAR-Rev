@@ -127,4 +127,7 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   rep_sc <- star_aov(d, "GrainYield", "Insecticide", NULL, design = "CRD", test = "scheffe", alpha = 0.05, report = TRUE)
   rl <- grep("^(Azodin|Control|DDT|Dimercon|Dol-Mix)", rep_sc$report, value = TRUE)
   check(identical(trimws(sub("^.*[0-9] +", "", rl)), rep_sc$means$Insecticide$Group), "Classic report and tables give the same Scheffe letters")
+  session$setInputs(cp_mrefs = 1)
+  check(length(method_refs) >= 20 && all(grepl("[0-9]{4}", method_refs)), "Method references are listed")
+  check(any(grepl("Error(Block:A)", paste(as.character(methods_sections), collapse = ""), fixed = TRUE)), "Methods page describes the split-plot model")
 })

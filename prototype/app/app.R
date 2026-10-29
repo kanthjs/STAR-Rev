@@ -241,10 +241,17 @@ home_ui <- div(class = "container", style = "max-width: 900px;",
     home_card("home_reg", "Predict a value", "How does a response change with one or more predictors, and what value is expected at a new x? Regression with a fitted equation and prediction.")),
   div(class = "alert alert-info", "Each screen starts with a built-in example. Choose Upload file to use your own .csv or .xlsx file (first row = column names). Your data stay in your browser."))
 
+source("methods.R", local = TRUE)   # methods_sections, method_refs
+
 methods_ui <- div(class = "container", style = "max-width: 800px;",
   h3("Methods and software"),
-  p("Use this page to describe how the analysis was done when you report your results."),
-  uiOutput("methods_text"))
+  p("Use this page to describe how the analysis was done when you report your results. The software and method references below can be copied into a manuscript."),
+  h3("Software"),
+  uiOutput("methods_text"),
+  h3("What each analysis does"),
+  methods_sections,
+  h3("References for the methods"),
+  tags$ul(lapply(method_refs, tags$li)), actionButton("cp_mrefs", "Copy method references"))
 
 about_ui <- div(class = "container", style = "max-width: 800px;",
   h3("About this app"),
@@ -319,13 +326,16 @@ server <- function(input, output, session) {
     sentence <- methods_sentence(gg_version())
     tagList(
       div(class = "well well-sm", sentence), actionButton("cp_methods", "Copy sentence"),
-      h4("References"), tags$ul(lapply(package_refs(), tags$li)), actionButton("cp_refs", "Copy references"),
+      h4("Software references"), tags$ul(lapply(package_refs(), tags$li)), actionButton("cp_refs", "Copy references"),
       h4("Where each result comes from"),
       html_table(data.frame(Result = c("ANOVA table (CRD, RCBD, split plot)", "Means comparison letters", "Correlation and p values", "Regression, ANOVA and coefficients", "Normality and variance checks, outliers", "Plots"),
                             `Computed by` = c("R stats::aov", "agricolae (LSD.test, HSD.test, duncan.test)", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test, nortest::lillie.test, lmtest::bptest, studentized residuals from stats", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
       p(class = "text-muted", sprintf("This session: %s, ggplot2 %s.", R.version.string, gg_version())))
   })
   observeEvent(input$cp_refs, session$sendCustomMessage("copy_text", list(what = "References", text = paste(package_refs(), collapse = "\n\n"))))
+observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = "Method references", text = paste(method_refs, collapse = "
+
+"))))
   observeEvent(input$cp_methods, session$sendCustomMessage("copy_text", list(what = "Methods sentence", text = methods_sentence(gg_version()))))
   # TRUE when the controls (as summarised by sig()) differ from what they were when the button was last pressed
   stale_flag <- function(button, sig) {

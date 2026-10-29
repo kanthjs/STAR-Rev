@@ -1,12 +1,12 @@
 ## New API (not part of the original STAR): read an uploaded data file (.csv, .tsv, .txt, .xlsx) into a data frame
 ## whose columns are all text, so that star_prepare_data() decides what is numeric. Delimiter (, ; tab |) and
-## encoding (UTF-8, with or without BOM, else Latin-1) are detected. Excel files are read with openxlsx.
+## encoding (UTF-8, with or without BOM, else Latin-1) are detected. Excel files are read with readxl.
 
 star_read_table <- function(path, name = path) {
   ext <- tolower(sub(".*[.]", "", name))
   df <- if (ext %in% c("xlsx", "xlsm")) {
-    if (!requireNamespace("openxlsx", quietly = TRUE)) stop("Reading Excel files needs the 'openxlsx' package.")
-    openxlsx::read.xlsx(path, sheet = 1, colNames = TRUE, skipEmptyRows = TRUE, detectDates = FALSE)
+    if (!requireNamespace("readxl", quietly = TRUE)) stop("Reading Excel files needs the 'readxl' package.")
+    as.data.frame(readxl::read_excel(path, sheet = 1, col_names = TRUE, col_types = "text", .name_repair = "minimal"))
   } else if (ext == "xls") {
     stop("Old .xls files are not supported; save the sheet as .xlsx or .csv.")
   } else {

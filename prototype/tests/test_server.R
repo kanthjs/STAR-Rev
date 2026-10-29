@@ -62,7 +62,7 @@ testServer(app, {
   # ---- downloads and copy (two-factor result is selected) ----
   session$setInputs(design = "RCBD", example = "rcbd2", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep"); run(pw = "auto")
   x <- output$dl_xlsx; check(file.exists(x) && file.size(x) > 3000, "xlsx download created")
-  sh <- openxlsx::getSheetNames(x); check(identical(sh, c("ANOVA", "Means", "Cell means", "Simple effects", "Info")), "xlsx sheets for a two-factor result")
+  sh <- readxl::excel_sheets(x); check(identical(sh, c("ANOVA", "Means", "Cell means", "Simple effects", "Info")), "xlsx sheets for a two-factor result")
   session$setInputs(plot_effect = "interaction"); p1 <- output$dl_aov_plot; check(file.exists(p1) && file.size(p1) > 5000, "png (interaction plot)")
   session$setInputs(plot_effect = "Nitrogen"); p2 <- output$dl_aov_plot; check(file.exists(p2) && file.size(p2) > 5000, "png (main effect plot)")
   t <- output$dl_txt; check(length(readLines(t)) > 40, "txt report download")
@@ -70,7 +70,7 @@ testServer(app, {
   cat("ok   copy buttons ran\n")
 
   session$setInputs(design = "CRD", example = "crd1", resp = "GrainYield", trt = "Insecticide"); run(pw = "LSD")
-  x1 <- output$dl_xlsx; check(identical(openxlsx::getSheetNames(x1), c("ANOVA", "Means", "Info")), "xlsx sheets for a one-factor result")
+  x1 <- output$dl_xlsx; check(identical(readxl::excel_sheets(x1), c("ANOVA", "Means", "Info")), "xlsx sheets for a one-factor result")
 
   # ---- errors are reported, not thrown ----
   run(pw = "LSD", resp = "GrainYield", trt = "GrainYield")
@@ -85,7 +85,7 @@ testServer(app, {
   session$setInputs(corr_view = "matrix"); check(file.size(output$dl_corr_plot) > 3000, "Correlation: scatter plot matrix png")
   session$setInputs(corr_view = "heat"); p <- output$dl_corr_plot; check(file.exists(p) && file.size(p) > 3000, "Correlation: heatmap png")
   session$setInputs(corr_view = "scatter", corr_x = "mpg", corr_y = "wt"); check(file.size(output$dl_corr_plot) > 3000, "Correlation: scatter png")
-  x <- output$dl_corr_xlsx; check(identical(openxlsx::getSheetNames(x), c("Correlation (r)", "P values", "N", "Pairs", "Info")), "Correlation: xlsx sheets")
+  x <- output$dl_corr_xlsx; check(identical(readxl::excel_sheets(x), c("Correlation (r)", "P values", "N", "Pairs", "Info")), "Correlation: xlsx sheets")
   session$setInputs(corr_method = "spearman", go_corr = 2)
   check(!("CI lower" %in% names(corr_tables()$pairs)) && names(corr_tables()$pairs)[3] == "rho", "Correlation: Spearman has rho and no CI")
   session$setInputs(corr_vars = "mpg", go_corr = 3); check(inherits(corr_res(), "star_error"), "Correlation: one variable is reported as an error")
@@ -96,7 +96,7 @@ testServer(app, {
   check(round(reg_ok()$anova$F[1], 2) == 69.21 && round(reg_ok()$fit$adj_r2, 4) == 0.8148, "Regression: F = 69.21, adjusted R-squared = 0.8148 (original STAR)")
   check(identical(reg_tables()$coef$Term, c("(Intercept)", "wt", "hp")) && "VIF" %in% names(reg_tables()$coef), "Regression: coefficient table with VIF")
   check(file.size(output$dl_reg_plot) > 3000, "Regression: observed vs fitted png")
-  x <- output$dl_reg_xlsx; check(identical(openxlsx::getSheetNames(x), c("Model", "ANOVA", "Coefficients", "Residuals")), "Regression: xlsx sheets")
+  x <- output$dl_reg_xlsx; check(identical(readxl::excel_sheets(x), c("Model", "ANOVA", "Coefficients", "Residuals")), "Regression: xlsx sheets")
   session$setInputs(reg_example = "seeding", reg_resp = "GrainYield", reg_pred = "SeedingRate", reg_degree = "2", go_reg = 2)
   check(!is.null(reg_ok()$optimum) && reg_ok()$optimum$inside, "Regression: quadratic finds an optimum inside the range")
   check(file.size(output$dl_reg_plot) > 3000, "Regression: curve png")

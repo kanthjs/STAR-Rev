@@ -7,3 +7,4 @@ Changes to the STAR web app that can affect results are marked **(results)**. Th
 - Only the engine files the app uses are bundled, so the app opens faster.
 - About tab with license, citation and problem-reporting link; app version written to Excel and TXT downloads.
 - Home page ("What do you want to do?"), Methods page with a copyable methods sentence, collapsible "What does this mean?" help, maintainer and disclaimer in About, app name kept in one place (`app_name`), deployment notes for IT in `docs/DEPLOY.md`.
+- Excel files are written with writexl and read with readxl (instead of openxlsx and its large dependency stringi): about 12 MB less to download when the app opens.

@@ -5,6 +5,8 @@ library(shiny)
 # The recovered STAR functions are large and each is called only a few times per analysis, so JIT compiling them on
 # first use costs far more than it saves (native R: first split-plot analysis 2.2 s with JIT, 0.5 s without).
 compiler::enableJIT(0)
+# readxl is used by star_read_table() in ./star; this line (never run) lets Shinylive see that the package must be bundled
+if (FALSE) readxl::read_excel
 for (f in sort(list.files("star", pattern = "[.]R$", full.names = TRUE))) source(f, local = FALSE)
 
 # ---- helpers ---------------------------------------------------------------------------------------------------
@@ -460,7 +462,7 @@ server <- function(input, output, session) {
                                         if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none"))
     sheets
   })
-  output$dl_xlsx <- downloadHandler("star_anova.xlsx", function(file) openxlsx::write.xlsx(xlsx_sheets(), file))
+  output$dl_xlsx <- downloadHandler("star_anova.xlsx", function(file) writexl::write_xlsx(xlsx_sheets(), file))
   output$dl_aov_plot <- downloadHandler(function() paste0("star_means_plot.", input$aov_fmt), function(file) {
     fmt <- input$aov_fmt %||% "png"; dpi <- as.numeric(input$aov_dpi %||% 300)
     if (use_gg()) { star_ggsave(gg_means(), file, width = 8, height = 5.6, dpi = dpi); return(invisible()) }
@@ -552,7 +554,7 @@ server <- function(input, output, session) {
   output$dl_corr_xlsx <- downloadHandler("star_correlation.xlsx", function(file) {
     r <- corr_ok(); tb <- corr_tables()
     mat <- function(m) data.frame(Variable = r$vars, m, check.names = FALSE, row.names = NULL)
-    openxlsx::write.xlsx(list(`Correlation (r)` = mat(r$r), `P values` = mat(r$p), N = mat(r$n), Pairs = r$pairs,
+    writexl::write_xlsx(list(`Correlation (r)` = mat(r$r), `P values` = mat(r$p), N = mat(r$n), Pairs = r$pairs,
                               Info = data.frame(Item = c("App version", "Method", "Alternative", "Alpha", "P adjustment", "Summary", "Data checks"),
                                                 Value = c(version_label(), r$method_name, r$alternative, r$alpha, r$adjust, r$summary,
                                                           if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none"))), file)
@@ -642,7 +644,7 @@ server <- function(input, output, session) {
                                                 if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none", unlist(r$fit))),
                    ANOVA = r$anova, Coefficients = r$coefficients)
     if (!is.null(dg)) sheets$Residuals <- dg$residuals
-    openxlsx::write.xlsx(sheets, file)
+    writexl::write_xlsx(sheets, file)
   })
   copy_button("cp_reg_anova", "ANOVA table", function() tsv(reg_tables()$anova))
   copy_button("cp_reg_coef", "Parameter estimates", function() tsv(reg_tables()$coef))

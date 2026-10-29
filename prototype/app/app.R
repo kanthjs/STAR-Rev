@@ -262,12 +262,16 @@ about_ui <- div(class = "container", style = "max-width: 800px;",
   h4("Maintainer"), p(app_maintainer, ". Problems are handled when time allows; there is no guaranteed response time."),
   h4("How to cite"), p("International Rice Research Institute (IRRI). STAR: Statistical Tools for Agricultural Research, version 2.0.2, and this web version", version_label(), "(https://github.com/kanthjs/STAR-Rev). See also the Methods page."),
   h4("Report a problem"), p(tags$a(href = "https://github.com/kanthjs/STAR-Rev/issues", target = "_blank", "GitHub Issues"), " (include the version above, the analysis you ran and, if you can, a small example file)."),
+  h4("Font"), p("The text of this app is set in Chulabhorn Likhit (Thai national font) from the Chulabhorn Royal Academy. Plots use the default font of R."),
   h4("License"), p("GNU General Public License, version 2 or later. Source code: ", tags$a(href = "https://github.com/kanthjs/STAR-Rev", target = "_blank", "github.com/kanthjs/STAR-Rev"), ".")
 )
 
 ui <- navbarPage(
   title = paste(app_name, "(beta)"), id = "nav",
-  header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML(".btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }
+  header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML("@font-face { font-family: 'Chulabhorn Likit'; src: url('fonts/ChulabhornLikitText-Regular.ttf') format('truetype'); font-weight: normal; }
+    @font-face { font-family: 'Chulabhorn Likit'; src: url('fonts/ChulabhornLikitText-Bold.ttf') format('truetype'); font-weight: bold; }
+    body, .btn, input, select, textarea, .selectize-input, .selectize-dropdown { font-family: 'Chulabhorn Likit', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 15px; }
+    .btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }
     details.help-box { margin: 4px 0 14px; font-size: 13px; } details.help-box summary { cursor: pointer; color: #337ab7; } .help-body { padding: 6px 0 0; color: #555; }
     details.plot-labels { margin-bottom: 12px; } details.plot-labels summary { cursor: pointer; color: #337ab7; margin-bottom: 8px; }
     html.shiny-busy body::after { content: 'Calculating...'; position: fixed; top: 10px; right: 14px; z-index: 9999; padding: 4px 12px;

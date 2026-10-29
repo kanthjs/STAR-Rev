@@ -271,6 +271,7 @@ ui <- navbarPage(
   header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML("@font-face { font-family: 'Chulabhorn Likit'; src: url('fonts/ChulabhornLikitText-Regular.ttf') format('truetype'); font-weight: normal; }
     @font-face { font-family: 'Chulabhorn Likit'; src: url('fonts/ChulabhornLikitText-Bold.ttf') format('truetype'); font-weight: bold; }
     body, .btn, input, select, textarea, .selectize-input, .selectize-dropdown { font-family: 'Chulabhorn Likit', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 15px; }
+    .navbar-nav > li.dropdown:last-child { float: right; } .navbar-nav > li > a { padding-left: 18px; padding-right: 18px; }
     .btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }
     details.help-box { margin: 4px 0 14px; font-size: 13px; } details.help-box summary { cursor: pointer; color: #337ab7; } .help-body { padding: 6px 0 0; color: #555; }
     details.plot-labels { margin-bottom: 12px; } details.plot-labels summary { cursor: pointer; color: #337ab7; margin-bottom: 8px; }
@@ -316,8 +317,8 @@ ui <- navbarPage(
   )),
   tabPanel("Correlation", corr_ui),
   tabPanel("Regression", reg_ui),
-  tabPanel("Methods", methods_ui),
-  tabPanel("About", about_ui)
+  # information pages are kept apart from the three analyses, in a menu on the right
+  navbarMenu("Info", tabPanel("Methods", methods_ui), tabPanel("About", about_ui))
 )
 
 # ---- server ----------------------------------------------------------------------------------------------------

@@ -9,6 +9,11 @@ for (f in sort(list.files("star", pattern = "[.]R$", full.names = TRUE))) source
 
 # ---- helpers ---------------------------------------------------------------------------------------------------
 `%||%` <- function(a, b) if (is.null(a)) b else a
+# name of this web app: change here (and in the About text) when it is renamed. "STAR" below always means the IRRI program.
+app_name <- "STAR"
+app_maintainer <- "Kanthanawit Jaisong"
+# short explanation folded away until wanted (for users who are not statisticians)
+help_box <- function(title, ...) tags$details(class = "help-box", tags$summary(title), div(class = "help-body", ...))
 # version of this build (written by scripts/build_app.R); shown in the About tab and written to every result file
 app_version <- local({
   v <- if (file.exists("VERSION")) readLines("VERSION") else character()
@@ -16,6 +21,7 @@ app_version <- local({
   c(version = get("version"), commit = get("commit"), built = get("built"))
 })
 version_label <- function() { v <- app_version; if (anyNA(v)) "development build" else sprintf("v%s (%s, built %s)", v[["version"]], v[["commit"]], v[["built"]]) }
+methods_sentence <- function(gg) sprintf("Data were analysed with %s (web app %s) running R %s.%s in the browser, using the recovered IRRI STAR 2.0.2 routines. Analysis of variance used aov(); means were compared with the STAR routines (LSD, Tukey HSD, Duncan, SNK, Scheffe, Bonferroni); correlations used cor.test(); regression used lm(); residual normality used the Shapiro-Wilk test; graphics used ggplot2 %s. R Core Team (%s). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. https://www.R-project.org/", app_name, version_label(), R.version$major, R.version$minor, gg, format(Sys.Date(), "%Y"))
 fmt_p <- function(p) ifelse(is.na(p), "", ifelse(p < 0.0001, "<0.0001", formatC(p, format = "f", digits = 4)))
 fmt_n <- function(x, digits = 2) ifelse(is.na(x), "", formatC(x, format = "f", digits = digits, big.mark = ","))
 
@@ -159,6 +165,7 @@ corr_ui <- sidebarLayout(
   sidebarPanel(
     data_source_ui("corr", corr_examples),
     uiOutput("corr_pickers"),
+    help_box("What does this mean?", p("Correlation measures how strongly two variables move together, from -1 to +1. Pearson suits straight-line relationships of measured values; Spearman and Kendall use ranks and suit curved or skewed data. A small p value (below the significance level) means the correlation is unlikely to be zero. It does not show cause and effect.")),
     selectInput("corr_method", "Method", c("Pearson (linear)" = "pearson", "Spearman (ranks)" = "spearman", "Kendall (ranks)" = "kendall")),
     selectInput("corr_alt", "Alternative", c("Two-sided" = "two.sided", "Positive (greater)" = "greater", "Negative (less)" = "less")),
     selectInput("corr_adjust", "Adjust p values for many pairs", c("None (as in STAR)" = "none", "Holm" = "holm", "Bonferroni" = "bonferroni", "Benjamini-Hochberg" = "BH")),
@@ -176,6 +183,7 @@ reg_ui <- sidebarLayout(
     data_source_ui("reg", reg_examples),
     uiOutput("reg_pickers"),
     conditionalPanel("!input.reg_pred || input.reg_pred.length <= 1",
+      help_box("What does this mean?", p("Regression describes how the response (y) changes with the predictor(s) (x). R-squared is the share of the variation in y explained by the model (1 = all). A coefficient with p below the significance level contributes to the model. Predictions outside the range of your data are extrapolations and unreliable.")),
       radioButtons("reg_degree", "Shape of the relationship", c("Straight line" = "1", "Quadratic (curve with a peak)" = "2", "Cubic" = "3"), inline = TRUE)),
     selectInput("reg_alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
     actionButton("go_reg", "Run regression", class = "btn-primary")),
@@ -213,23 +221,41 @@ Shiny.addCustomMessageHandler('copy_text', function(msg) {
   } else { fallback(); }
 });"
 
+home_card <- function(id, title, text) div(class = "col-sm-4", div(class = "well", h4(title), p(text), actionButton(id, "Open", class = "btn-primary")))
+home_ui <- div(class = "container", style = "max-width: 900px;",
+  h3("What do you want to do?"),
+  p("Choose the question that matches your data. You can come back here at any time."),
+  div(class = "row",
+    home_card("home_aov", "Compare treatments", "Do the groups (varieties, fertilizer rates, ...) differ in yield or another measurement? Analysis of variance for CRD, RCBD and split plot, with means comparison."),
+    home_card("home_corr", "See how variables relate", "Do two or more measurements rise and fall together (for example plant height and yield)? Correlation with plots."),
+    home_card("home_reg", "Predict a value", "How does a response change with one or more predictors, and what value is expected at a new x? Regression with a fitted equation and prediction.")),
+  div(class = "alert alert-info", "Each screen starts with a built-in example. Choose Upload file to use your own .csv or .xlsx file (first row = column names). Your data stay in your browser."))
+
+methods_ui <- div(class = "container", style = "max-width: 800px;",
+  h3("Methods and software"),
+  p("Use this page to describe how the analysis was done when you report your results."),
+  uiOutput("methods_text"))
+
 about_ui <- div(class = "container", style = "max-width: 800px;",
   h3("About this app"),
-  p("A web version of STAR (Statistical Tools for Agricultural Research) from the International Rice Research Institute (IRRI), used with IRRI's permission. It runs the recovered STAR 2.0.2 R code in your own browser."),
-  div(class = "alert alert-warning", strong("Prototype."), "Results were checked against STAR 2.0.2 on the built-in examples, but this version is still under development. Check important results (for example before publishing) with another program or a statistician, and report anything that looks wrong."),
+  p(sprintf("%s is a web version of STAR (Statistical Tools for Agricultural Research) from the International Rice Research Institute (IRRI), used with IRRI permission. It runs the recovered STAR 2.0.2 R code in your own browser.", app_name)),
+  div(class = "alert alert-warning", strong("Beta."), "Results were checked against STAR 2.0.2 on the built-in examples, but this version is still under development. Check important results (for example before publishing) with another program or a statistician, and report anything that looks wrong."),
   h4("Your data"), p("Your files are read and analysed inside your browser. They are not uploaded to any server."),
   h4("Version"), p(code(version_label()), "Please quote this when you report a problem."),
-  h4("How to cite"), p("International Rice Research Institute (IRRI). STAR: Statistical Tools for Agricultural Research, version 2.0.2, and this web version", version_label(), "(https://github.com/kanthjs/STAR-Rev)."),
+  h4("Maintainer"), p(app_maintainer, ". Problems are handled when time allows; there is no guaranteed response time."),
+  h4("How to cite"), p("International Rice Research Institute (IRRI). STAR: Statistical Tools for Agricultural Research, version 2.0.2, and this web version", version_label(), "(https://github.com/kanthjs/STAR-Rev). See also the Methods page."),
   h4("Report a problem"), p(tags$a(href = "https://github.com/kanthjs/STAR-Rev/issues", target = "_blank", "GitHub Issues"), " (include the version above, the analysis you ran and, if you can, a small example file)."),
   h4("License"), p("GNU General Public License, version 2 or later. Source code: ", tags$a(href = "https://github.com/kanthjs/STAR-Rev", target = "_blank", "github.com/kanthjs/STAR-Rev"), ".")
 )
 
 ui <- navbarPage(
-  "STAR (prototype)",
+  title = paste(app_name, "(beta)"), id = "nav",
   header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML(".btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }
+    details.help-box { margin: 4px 0 14px; font-size: 13px; } details.help-box summary { cursor: pointer; color: #337ab7; } .help-body { padding: 6px 0 0; color: #555; }
     details.plot-labels { margin-bottom: 12px; } details.plot-labels summary { cursor: pointer; color: #337ab7; margin-bottom: 8px; }
     html.shiny-busy body::after { content: 'Calculating...'; position: fixed; top: 10px; right: 14px; z-index: 9999; padding: 4px 12px;
                                   border-radius: 4px; background: #2c3e50; color: #fff; font-size: 13px; }"))),
+  tabPanel("Home", home_ui),
   tabPanel("Analysis of variance", sidebarLayout(
     sidebarPanel(
       radioButtons("design", "Experimental design", c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD",
@@ -242,6 +268,7 @@ ui <- navbarPage(
                   c("Automatic: LSD if <= 5 levels, else Tukey" = "auto", "LSD" = "LSD", "Tukey HSD" = "HSD",
                     "Duncan" = "duncan", "SNK" = "SNK", "Scheffe" = "scheffe", "Bonferroni" = "bonferroni")),
       helpText("Letters are shown when the effect is significant."),
+      help_box("What does this mean?", p(strong("CRD:"), "treatments were assigned completely at random, no blocks."), p(strong("RCBD:"), "plots were grouped into blocks (replications) of similar conditions and every treatment appears once in each block."), p(strong("Split plot:"), "one factor (main plot) is applied to large plots and a second factor (sub plot) within each."), p(strong("Means comparison:"), "LSD is the least strict; Tukey is safer when there are many levels because it controls the chance of a false difference among all pairs. Means sharing a letter are not significantly different.")),
       selectInput("alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
       actionButton("go_aov", "Run ANOVA", class = "btn-primary")
     ),
@@ -268,11 +295,26 @@ ui <- navbarPage(
   )),
   tabPanel("Correlation", corr_ui),
   tabPanel("Regression", reg_ui),
+  tabPanel("Methods", methods_ui),
   tabPanel("About", about_ui)
 )
 
 # ---- server ----------------------------------------------------------------------------------------------------
 server <- function(input, output, session) {
+  observeEvent(input$home_aov, updateNavbarPage(session, "nav", selected = "Analysis of variance"))
+  observeEvent(input$home_corr, updateNavbarPage(session, "nav", selected = "Correlation"))
+  observeEvent(input$home_reg, updateNavbarPage(session, "nav", selected = "Regression"))
+  gg_version <- function() tryCatch(as.character(utils::packageVersion("ggplot2")), error = function(e) "")
+  output$methods_text <- renderUI({
+    sentence <- methods_sentence(gg_version())
+    tagList(
+      div(class = "well well-sm", sentence), actionButton("cp_methods", "Copy sentence"),
+      h4("Where each result comes from"),
+      html_table(data.frame(Result = c("ANOVA table (CRD, RCBD, split plot)", "Means comparison letters", "Correlation and p values", "Regression, ANOVA and coefficients", "Normality and variance checks, outliers", "Plots"),
+                            `Computed by` = c("R stats::aov", "STAR routines (LSD, HSD, Duncan, SNK, Scheffe) recovered from IRRI STAR", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test and STAR-style checks", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
+      p(class = "text-muted", sprintf("This session: %s, ggplot2 %s.", R.version.string, gg_version())))
+  })
+  observeEvent(input$cp_methods, session$sendCustomMessage("copy_text", list(what = "Methods sentence", text = methods_sentence(gg_version()))))
   # TRUE when the controls (as summarised by sig()) differ from what they were when the button was last pressed
   stale_flag <- function(button, sig) {
     ran <- reactiveVal(NULL)

@@ -104,4 +104,10 @@ testServer(app, {
   session$setInputs(reg_pred = c("SeedingRate", "GrainYield"), go_reg = 3); check(inherits(reg_res(), "star_error"), "Regression: bad choice is reported as an error")
   session$setInputs(cp_reg_anova = 1, cp_reg_coef = 1, cp_reg_apa = 1)
   cat("ok   regression copy buttons ran\n")
+
+  # ---- Home, Methods, About ----
+  session$setInputs(home_aov = 1, home_corr = 1, home_reg = 1, cp_methods = 1)
+  check(grepl("R [0-9]+[.][0-9]+", methods_sentence("3.5.0")) && grepl("ggplot2 3.5.0", methods_sentence("3.5.0")), "Methods sentence names R and ggplot2 versions")
+  check(nzchar(version_label()) && nzchar(app_name), "App name and version label exist")
+  check(grepl("Where each result comes from", paste(as.character(output$methods_text$html), collapse = "")), "Methods page renders")
 })

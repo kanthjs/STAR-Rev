@@ -110,4 +110,21 @@ testServer(app, {
   check(grepl("R [0-9]+[.][0-9]+", methods_sentence("3.5.0")) && grepl("ggplot2 3.5.0", methods_sentence("3.5.0")), "Methods sentence names R and ggplot2 versions")
   check(nzchar(version_label()) && nzchar(app_name), "App name and version label exist")
   check(grepl("Where each result comes from", paste(as.character(output$methods_text$html), collapse = "")), "Methods page renders")
+
+  # ---- mean comparison comes from agricolae: letters must agree with the critical difference ----
+  d <- read.csv("example_crd.csv"); d$Insecticide <- factor(d$Insecticide)
+  fit <- aov(GrainYield ~ Insecticide, d); dfe <- df.residual(fit); mse <- deviance(fit) / dfe
+  mm <- tapply(d$GrainYield, d$Insecticide, mean); cdiff <- sqrt(qf(0.99, 6, dfe) * 6 * 2 * mse / 4)
+  sc <- .star_compare_means(d$GrainYield, d$Insecticide, "scheffe", dfe, mse, 0.01)
+  share <- function(a, b) length(intersect(strsplit(a, "")[[1]], strsplit(b, "")[[1]])) > 0
+  bad <- 0; for (i in 1:6) for (j in (i + 1):7) if (share(sc$Group[i], sc$Group[j]) != (abs(mm[i] - mm[j]) <= cdiff)) bad <- bad + 1
+  check(bad == 0, "Scheffe letters follow the critical difference at alpha = 0.01")
+  check(!identical(sc$Group, .star_compare_means(d$GrainYield, d$Insecticide, "scheffe", dfe, mse, 0.05)$Group), "Scheffe uses the chosen alpha")
+  du <- d[-c(3, 7), ]; du$Insecticide <- droplevels(du$Insecticide)
+  check(identical(.star_compare_means(du$GrainYield, du$Insecticide, "LSD", dfe, mse, 0.05)$N, c(4L, 4L, 4L, 4L, 4L, 3L, 3L)), "Group sizes are the real counts when the data are unbalanced")
+  check(length(package_refs()) >= 7 && all(nzchar(package_refs())), "References are built for the packages used")
+  # the classic STAR report and the tables agree on the Scheffe letters
+  rep_sc <- star_aov(d, "GrainYield", "Insecticide", NULL, design = "CRD", test = "scheffe", alpha = 0.05, report = TRUE)
+  rl <- grep("^(Azodin|Control|DDT|Dimercon|Dol-Mix)", rep_sc$report, value = TRUE)
+  check(identical(trimws(sub("^.*[0-9] +", "", rl)), rep_sc$means$Insecticide$Group), "Classic report and tables give the same Scheffe letters")
 })

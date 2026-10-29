@@ -76,7 +76,7 @@ function (y, trt, DFerror, MSerror, Fc, alpha = 0.05, group = TRUE,
     cat("\n")
     if (group) {
         output <- order.group(means[, 1], means[, 2], means[, 
-            4], MSerror, Tprob, means[, 3], parameter = 1)
+            4], MSerror, sqrt(Tprob * (ntr - 1)), means[, 3], parameter = 1) # fix: Scheffe critical value is sqrt((k - 1) * F); the recovered code passed F
         colnames(output)[1] <- name.t
         if (pwOrder == "means") {
             w <- order(means[, 2], decreasing = TRUE)

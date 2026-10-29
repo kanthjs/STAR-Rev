@@ -13,23 +13,24 @@
   if (test != "auto") test else if (n_levels <= 5) "LSD" else "HSD"
 }
 
-# One STAR mean-separation test on a set of observations, returned as a tidy data frame.
+# One mean-separation test on a set of observations (agricolae), returned as a tidy data frame.
 # `model_se = TRUE` replaces the per-group SE with the model-based sqrt(mse / n).
 .star_compare_means <- function(y, tr, test, dfe, mse, alpha, model_se = FALSE) {
-  invisible(utils::capture.output(
-    cmp <- if (test == "bonferroni") {
-      LSD.test(y, tr, dfe, mse, alpha, p.adj = "bonferroni")
-    } else {
-      get(paste0(test, ".test"), mode = "function")(y, tr, dfe, mse, alpha)
-    }
-  ))
-  s <- cmp$summary
+  tr <- droplevels(tr)
+  unequal <- length(unique(table(tr[!is.na(y)]))) > 1
+  cmp <- switch(test,
+    LSD = agricolae::LSD.test(y, tr, dfe, mse, alpha, console = FALSE),
+    bonferroni = agricolae::LSD.test(y, tr, dfe, mse, alpha, p.adj = "bonferroni", console = FALSE),
+    HSD = agricolae::HSD.test(y, tr, dfe, mse, alpha, unbalanced = unequal, console = FALSE),
+    duncan = agricolae::duncan.test(y, tr, dfe, mse, alpha, console = FALSE),
+    SNK = agricolae::SNK.test(y, tr, dfe, mse, alpha, console = FALSE),
+    scheffe = agricolae::scheffe.test(y, tr, dfe, mse, Fc = NA_real_, alpha = alpha, console = FALSE),
+    stop("Unknown mean comparison test: ", test, call. = FALSE))
+  m <- cmp$means
   out <- data.frame(
-    Treatment = trimws(as.character(s[[1]])), Mean = s$means, N = s$N, SE = s$std.err,
-    Group = trimws(as.character(s$group)), stringsAsFactors = FALSE
-  )
-  out <- out[match(trimws(levels(tr)), out$Treatment), ]
-  out$Treatment <- levels(tr)
+    Treatment = rownames(m), Mean = m$y, N = m$r, SE = m$std / sqrt(m$r),
+    Group = trimws(as.character(cmp$groups[rownames(m), "groups"])), stringsAsFactors = FALSE)
+  out <- out[match(levels(tr), out$Treatment), ]
   if (model_se) out$SE <- sqrt(mse / out$N)
   rownames(out) <- NULL
   out

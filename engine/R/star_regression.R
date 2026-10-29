@@ -112,16 +112,16 @@ star_regression <- function(data, response, predictors, degree = 1, alpha = 0.05
 }
 
 # Residual checks for a regression: outliers, normality (shared with star_diagnostics) and constant variance
-# (Breusch-Pagan: squared residuals regressed on the fitted values).
+# (Breusch-Pagan, studentized, against the fitted values: lmtest::bptest).
 .star_reg_diagnostics <- function(fit, mf, response, alpha, outlier_cut = 3, suspect_cut = 2) {
   ck <- .star_resid_checks(fit, mf, response, setdiff(names(mf), response), alpha, outlier_cut, suspect_cut)
   n <- ck$n
   e2 <- ck$res^2
   homogeneity <- list(test = "Breusch-Pagan", statistic = NA_real_, p = NA_real_, ok = NA, ratio = NA_real_)
   if (n >= 5 && stats::var(ck$fitted) > 0 && stats::var(e2) > 0) {
-    r2 <- summary(stats::lm(e2 / mean(e2) ~ ck$fitted))$r.squared
-    stat <- n * r2
-    p <- stats::pchisq(stat, 1, lower.tail = FALSE)
+    bp <- lmtest::bptest(fit, ~ f, data = data.frame(f = ck$fitted), studentize = TRUE)
+    stat <- unname(bp$statistic)
+    p <- bp$p.value
     homogeneity <- list(test = "Breusch-Pagan", statistic = stat, p = p, ok = p >= alpha, ratio = NA_real_)
   }
   msg <- character()

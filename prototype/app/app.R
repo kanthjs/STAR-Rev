@@ -5,8 +5,8 @@ library(shiny)
 # The recovered STAR functions are large and each is called only a few times per analysis, so JIT compiling them on
 # first use costs far more than it saves (native R: first split-plot analysis 2.2 s with JIT, 0.5 s without).
 compiler::enableJIT(0)
-# readxl is used by star_read_table() in ./star; this line (never run) lets Shinylive see that the package must be bundled
-if (FALSE) readxl::read_excel
+# Packages used by the code in ./star; this line (never run) lets Shinylive see that they must be bundled
+if (FALSE) { readxl::read_excel; agricolae::LSD.test; nortest::lillie.test; lmtest::bptest }
 for (f in sort(list.files("star", pattern = "[.]R$", full.names = TRUE))) source(f, local = FALSE)
 
 # ---- helpers ---------------------------------------------------------------------------------------------------
@@ -23,7 +23,15 @@ app_version <- local({
   c(version = get("version"), commit = get("commit"), built = get("built"))
 })
 version_label <- function() { v <- app_version; if (anyNA(v)) "development build" else sprintf("v%s (%s, built %s)", v[["version"]], v[["commit"]], v[["built"]]) }
-methods_sentence <- function(gg) sprintf("Data were analysed with %s (web app %s) running R %s.%s in the browser, using the recovered IRRI STAR 2.0.2 routines. Analysis of variance used aov(); means were compared with the STAR routines (LSD, Tukey HSD, Duncan, SNK, Scheffe, Bonferroni); correlations used cor.test(); regression used lm(); residual normality used the Shapiro-Wilk test; graphics used ggplot2 %s. R Core Team (%s). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. https://www.R-project.org/", app_name, version_label(), R.version$major, R.version$minor, gg, format(Sys.Date(), "%Y"))
+methods_sentence <- function(gg) sprintf("Data were analysed with %s (web app %s) running R %s.%s in the browser, using routines recovered from IRRI STAR 2.0.2. Analysis of variance used aov(); means were compared with the agricolae package (LSD, Tukey HSD, Duncan, SNK, Scheffe, Bonferroni); correlations used cor.test(); regression used lm(); residual normality used the Shapiro-Wilk test and the Lilliefors test (nortest); constant variance used the Breusch-Pagan test (lmtest); graphics used ggplot2 %s. See the references below.", app_name, version_label(), R.version$major, R.version$minor, gg)
+# packages whose results or tools appear in the output; their references are built from each package's own citation()
+cited_packages <- c("agricolae", "nortest", "lmtest", "ggplot2", "readxl", "writexl")
+package_refs <- function() {
+  one <- function(pkg) tryCatch(paste(format(utils::citation(pkg), style = "text"), collapse = " "),
+                                error = function(e) sprintf("%s: R package%s.", pkg, tryCatch(paste(" version", utils::packageVersion(pkg)), error = function(e) "")))
+  refs <- c(one("base"), vapply(cited_packages, one, ""), paste("International Rice Research Institute (IRRI). STAR: Statistical Tools for Agricultural Research, version 2.0.2."))
+  unname(gsub("[*_]", "", gsub("[[:space:]]+", " ", refs)))
+}
 fmt_p <- function(p) ifelse(is.na(p), "", ifelse(p < 0.0001, "<0.0001", formatC(p, format = "f", digits = 4)))
 fmt_n <- function(x, digits = 2) ifelse(is.na(x), "", formatC(x, format = "f", digits = digits, big.mark = ","))
 
@@ -311,11 +319,13 @@ server <- function(input, output, session) {
     sentence <- methods_sentence(gg_version())
     tagList(
       div(class = "well well-sm", sentence), actionButton("cp_methods", "Copy sentence"),
+      h4("References"), tags$ul(lapply(package_refs(), tags$li)), actionButton("cp_refs", "Copy references"),
       h4("Where each result comes from"),
       html_table(data.frame(Result = c("ANOVA table (CRD, RCBD, split plot)", "Means comparison letters", "Correlation and p values", "Regression, ANOVA and coefficients", "Normality and variance checks, outliers", "Plots"),
-                            `Computed by` = c("R stats::aov", "STAR routines (LSD, HSD, Duncan, SNK, Scheffe) recovered from IRRI STAR", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test and STAR-style checks", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
+                            `Computed by` = c("R stats::aov", "agricolae (LSD.test, HSD.test, duncan.test, SNK.test, scheffe.test)", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test, nortest::lillie.test, lmtest::bptest, studentized residuals from stats", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
       p(class = "text-muted", sprintf("This session: %s, ggplot2 %s.", R.version.string, gg_version())))
   })
+  observeEvent(input$cp_refs, session$sendCustomMessage("copy_text", list(what = "References", text = paste(package_refs(), collapse = "\n\n"))))
   observeEvent(input$cp_methods, session$sendCustomMessage("copy_text", list(what = "Methods sentence", text = methods_sentence(gg_version()))))
   # TRUE when the controls (as summarised by sig()) differ from what they were when the button was last pressed
   stale_flag <- function(button, sig) {

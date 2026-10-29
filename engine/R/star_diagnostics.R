@@ -44,8 +44,8 @@
     list(test = "Shapiro-Wilk", statistic = NA_real_, p = NA_real_, ok = NA)
   }
   ks <- if (n >= 5 && diff(range(res)) > 0) { # Kolmogorov-Smirnov with Lilliefors correction (mean and SD estimated)
-    p <- tryCatch(lillie.test(res)$p.value, error = \(e) NA_real_)
-    list(test = "Kolmogorov-Smirnov (Lilliefors)", statistic = tryCatch(unname(lillie.test(res)$statistic), error = \(e) NA_real_), p = p, ok = p >= alpha)
+    p <- tryCatch(nortest::lillie.test(res)$p.value, error = \(e) NA_real_)
+    list(test = "Kolmogorov-Smirnov (Lilliefors)", statistic = tryCatch(unname(nortest::lillie.test(res)$statistic), error = \(e) NA_real_), p = p, ok = p >= alpha)
   } else {
     list(test = "Kolmogorov-Smirnov (Lilliefors)", statistic = NA_real_, p = NA_real_, ok = NA)
   }

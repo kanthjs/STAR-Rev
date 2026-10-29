@@ -321,6 +321,8 @@ server <- function(input, output, session) {
     observeEvent(input[[button]], ran(sig()))
     reactive(!is.null(ran()) && !identical(ran(), sig()))
   }
+  # explicit cache: the default application cache is not set up when the app runs in the browser (webR)
+  star_cache <- cachem::cache_mem(max_size = 100 * 1024^2)
   output$example_picker <- renderUI(selectInput("example", "Example", examples[[input$design]]))
   setup <- reactive(if (input$src == "ex" && !is.null(input$example) && input$example %in% names(example_setup)) example_setup[[input$example]])
 
@@ -362,7 +364,7 @@ server <- function(input, output, session) {
                       alpha = as.numeric(input$alpha), report = FALSE),
              error = function(e) structure(list(message = conditionMessage(e)), class = "star_error"))
   }) |>
-    bindCache(dat(), input$design, input$resp, input$trt, input$trt_main, input$trt_sub, input$blk, input$pw, input$alpha) |>
+    bindCache(dat(), input$design, input$resp, input$trt, input$trt_main, input$trt_sub, input$blk, input$pw, input$alpha, cache = star_cache) |>
     bindEvent(input$go_aov)
   ok <- reactive({ r <- res(); req(!inherits(r, "star_error")); r })
   # The data behind the current results (for plotting observations). Stored when Run is pressed: an eventReactive would
@@ -439,7 +441,7 @@ server <- function(input, output, session) {
       })
   })
   output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); if (identical(input$diag_style, "gg")) print(star_ggplot_diagnostics(dg)) else star_plot_diagnostics(dg) })
-  report_text <- reactive(star_report(ok())) |> bindCache(ok())
+  report_text <- reactive(star_report(ok())) |> bindCache(ok(), cache = star_cache)
   output$report <- renderText(paste(report_text(), collapse = "\n"))
 
   xlsx_sheets <- reactive({

@@ -1,4 +1,4 @@
-# STAR web prototype (Shinylive)
+# RDstat web app (Shinylive)
 
 Three screens: analysis of variance (CRD, RCBD, split plot; mean comparison, plots, assumption checks), correlation (Pearson / Spearman / Kendall, heatmap and scatter plots) and linear regression (multiple, quadratic, cubic; diagnostics, prediction). Each has copy and Excel/plot download. It runs the recovered STAR engine inside the browser via webR.
 

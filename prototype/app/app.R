@@ -12,7 +12,7 @@ for (f in sort(list.files("star", pattern = "[.]R$", full.names = TRUE))) source
 # ---- helpers ---------------------------------------------------------------------------------------------------
 `%||%` <- function(a, b) if (is.null(a)) b else a
 # name of this web app: change here (and in the About text) when it is renamed. "STAR" below always means the IRRI program.
-app_name <- "STAR"
+app_name <- "RDstat"
 app_maintainer <- "Kanthanawit Jaisong"
 # short explanation folded away until wanted (for users who are not statisticians)
 help_box <- function(title, ...) tags$details(class = "help-box", tags$summary(title), div(class = "help-body", ...))
@@ -165,11 +165,36 @@ plot_labels_ui <- function(p) tags$details(class = "plot-labels",
     column(4, textInput(paste0(p, "_title"), "Title", placeholder = "(automatic)")),
     column(4, textInput(paste0(p, "_xlab"), "X axis label", placeholder = "(automatic)")),
     column(4, textInput(paste0(p, "_ylab"), "Y axis label", placeholder = "(automatic)"))))
-plot_export_ui <- function(p) fluidRow(
-  column(4, selectInput(paste0(p, "_fmt"), "File type", c("PNG" = "png", "SVG" = "svg", "PDF" = "pdf"))),
-  column(4, conditionalPanel(sprintf("input.%s_fmt == 'png'", p),
+# plot style: one set of choices for every plot. Each screen has its own copy of the controls (input ids must be
+# unique) and the server keeps the copies in step, so a change on one screen applies to all of them.
+style_screens <- c("aov", "corr", "reg")
+style_choices <- list(
+  pal = c("Okabe-Ito (colour-blind)" = "okabe", "Greyscale (B&W print)" = "grey", "Viridis" = "viridis",
+          "Soft colours (Set2)" = "set2", "Greens" = "green"),
+  theme = c("Classic (axes only)" = "classic", "White with grid lines" = "bw", "Minimal" = "minimal", "Grey background" = "grey"),
+  size = c("9 (journal figure)" = 9, "10" = 10, "11" = 11, "12 (default)" = 12, "14" = 14, "16 (slides)" = 16, "18" = 18, "20" = 20),
+  legend = c("Automatic" = "auto", "Top" = "top", "Right" = "right", "Bottom" = "bottom", "None" = "none"))
+style_defaults <- c(pal = "okabe", theme = "classic", size = "12", legend = "auto")
+plot_style_ui <- function(p) tags$details(class = "plot-labels",
+  tags$summary("Plot style: colours, theme, font size"),
+  fluidRow(
+    column(3, selectInput(paste0(p, "_pal"), "Colours", style_choices$pal)),
+    column(3, selectInput(paste0(p, "_theme"), "Theme", style_choices$theme)),
+    column(3, selectInput(paste0(p, "_size"), "Font size (pt)", style_choices$size, selected = 12)),
+    column(3, selectInput(paste0(p, "_legend"), "Legend", style_choices$legend))),
+  p(class = "text-muted", style = "font-size: 13px;", "These settings apply to every plot in the app. For a one-column journal figure, use font size 9 or 10."))
+# downloaded plot size, width x height in cm
+export_sizes <- list(std = c(20, 14), j1 = c(8.5, 6.5), j2 = c(17.5, 12), slide = c(25, 14))
+plot_export_ui <- function(p) tagList(fluidRow(
+  column(2, selectInput(paste0(p, "_fmt"), "File type", c("PNG" = "png", "SVG" = "svg", "PDF" = "pdf"))),
+  column(3, conditionalPanel(sprintf("input.%s_fmt == 'png'", p),
                              selectInput(paste0(p, "_dpi"), "Resolution", c("Screen (120 dpi)" = 120, "Print (300 dpi)" = 300, "High (600 dpi)" = 600), selected = 300))),
-  column(4, br(), conditionalPanel(sprintf("input.go_%s > 0", p), downloadButton(paste0("dl_", p, "_plot"), "Download plot"))))
+  column(4, selectInput(paste0(p, "_dim"), "Size", c("Standard (20 x 14 cm)" = "std", "Journal, 1 column (8.5 x 6.5 cm)" = "j1",
+                                                    "Journal, 2 columns (17.5 x 12 cm)" = "j2", "Slide 16:9 (25 x 14 cm)" = "slide", "Custom" = "custom"))),
+  column(3, br(), conditionalPanel(sprintf("input.go_%s > 0", p), downloadButton(paste0("dl_", p, "_plot"), "Download plot")))),
+  conditionalPanel(sprintf("input.%s_dim == 'custom'", p), fluidRow(
+    column(2, offset = 5, numericInput(paste0(p, "_w"), "Width (cm)", 20, min = 3, max = 60, step = 0.5)),
+    column(2, numericInput(paste0(p, "_h"), "Height (cm)", 14, min = 3, max = 60, step = 0.5)))))
 
 corr_ui <- sidebarLayout(
   sidebarPanel(
@@ -186,7 +211,7 @@ corr_ui <- sidebarLayout(
     tabsetPanel(
       tabPanel("Results", br(), uiOutput("corr_results_ui"), br(), conditionalPanel("input.go_corr > 0", downloadButton("dl_corr_xlsx", "Download Excel (.xlsx)"))),
       tabPanel("Data", br(), uiOutput("corr_data_ui")),
-      tabPanel("Plot", br(), uiOutput("corr_view_picker"), plot_labels_ui("corr"), plotOutput("corr_plot", height = "460px"), plot_export_ui("corr")))))
+      tabPanel("Plot", br(), uiOutput("corr_view_picker"), plot_labels_ui("corr"), plot_style_ui("corr"), plotOutput("corr_plot", height = "460px"), plot_export_ui("corr")))))
 
 reg_ui <- sidebarLayout(
   sidebarPanel(
@@ -202,7 +227,7 @@ reg_ui <- sidebarLayout(
     tabsetPanel(
       tabPanel("Results", br(), uiOutput("reg_results_ui"), br(), conditionalPanel("input.go_reg > 0", downloadButton("dl_reg_xlsx", "Download Excel (.xlsx)"))),
       tabPanel("Data", br(), uiOutput("reg_data_ui")),
-      tabPanel("Plot", br(), plot_labels_ui("reg"), plotOutput("reg_plot", height = "460px"), plot_export_ui("reg")),
+      tabPanel("Plot", br(), plot_labels_ui("reg"), plot_style_ui("reg"), plotOutput("reg_plot", height = "460px"), plot_export_ui("reg")),
       tabPanel("Outliers & assumptions", br(), uiOutput("reg_diag_ui"), plotOutput("reg_diag_plot", height = "420px")),
       tabPanel("Predict", br(), uiOutput("reg_predict_ui")))))
 
@@ -231,39 +256,39 @@ Shiny.addCustomMessageHandler('copy_text', function(msg) {
   } else { fallback(); }
 });"
 
-home_card <- function(id, title, text) div(class = "col-sm-4", div(class = "well", h4(title), p(text), actionButton(id, "Open", class = "btn-primary")))
+home_card <- function(id, title, text) div(class = "col-sm-4", div(class = "well", h4(title), p(text), actionButton(id, "เปิด", class = "btn-primary")))
 home_ui <- div(class = "container", style = "max-width: 900px;",
-  h3("What do you want to do?"),
-  p("Choose the question that matches your data. You can come back here at any time."),
+  h3("ต้องการวิเคราะห์อะไร"),
+  p("เลือกคำถามที่ตรงกับข้อมูลของคุณ กลับมาที่หน้านี้ได้ทุกเมื่อ"),
   div(class = "row",
-    home_card("home_aov", "Compare treatments", "Do the groups (varieties, fertilizer rates, ...) differ in yield or another measurement? Analysis of variance for CRD, RCBD and split plot, with means comparison."),
-    home_card("home_corr", "See how variables relate", "Do two or more measurements rise and fall together (for example plant height and yield)? Correlation with plots."),
-    home_card("home_reg", "Predict a value", "How does a response change with one or more predictors, and what value is expected at a new x? Regression with a fitted equation and prediction.")),
-  div(class = "alert alert-info", "Each screen starts with a built-in example. Choose Upload file to use your own .csv or .xlsx file (first row = column names). Your data stay in your browser."))
+    home_card("home_aov", "เปรียบเทียบสิ่งทดลอง", "กลุ่มต่าง ๆ (พันธุ์ อัตราปุ๋ย ฯลฯ) ให้ผลผลิตหรือค่าที่วัดแตกต่างกันหรือไม่ วิเคราะห์ความแปรปรวน (ANOVA) สำหรับแผนการทดลอง CRD, RCBD และ split plot พร้อมการเปรียบเทียบค่าเฉลี่ย"),
+    home_card("home_corr", "ดูความสัมพันธ์ระหว่างตัวแปร", "ค่าที่วัดตั้งแต่สองค่าขึ้นไปเพิ่มหรือลดไปด้วยกันหรือไม่ (เช่น ความสูงต้นกับผลผลิต) วิเคราะห์สหสัมพันธ์ (correlation) พร้อมกราฟ"),
+    home_card("home_reg", "ทำนายค่า", "ค่าตอบสนองเปลี่ยนไปอย่างไรตามตัวแปรอิสระหนึ่งตัวหรือมากกว่า และค่าที่คาดหวังเมื่อ x เป็นค่าใหม่คือเท่าไร วิเคราะห์การถดถอย (regression) พร้อมสมการและการทำนาย")),
+  div(class = "alert alert-info", "ทุกหน้าจอเริ่มต้นด้วยข้อมูลตัวอย่าง เลือก Upload file เพื่อใช้ไฟล์ .csv หรือ .xlsx ของคุณเอง (แถวแรกเป็นชื่อคอลัมน์) ข้อมูลของคุณอยู่ในเบราว์เซอร์ของคุณเท่านั้น"))
 
 source("methods.R", local = TRUE)   # methods_sections, method_refs
 
 methods_ui <- div(class = "container", style = "max-width: 800px;",
-  h3("Methods and software"),
-  p("Use this page to describe how the analysis was done when you report your results. The software and method references below can be copied into a manuscript."),
-  h3("Software"),
+  h3("วิธีการและซอฟต์แวร์"),
+  p("ใช้หน้านี้อธิบายวิธีวิเคราะห์เมื่อรายงานผล ประโยคบรรยายซอฟต์แวร์และเอกสารอ้างอิงด้านล่างเป็นภาษาอังกฤษ คัดลอกไปใส่ในต้นฉบับบทความได้ทันที"),
+  h3("ซอฟต์แวร์"),
   uiOutput("methods_text"),
-  h3("What each analysis does"),
+  h3("แต่ละการวิเคราะห์ทำอะไร"),
   methods_sections,
-  h3("References for the methods"),
-  tags$ul(lapply(method_refs, tags$li)), actionButton("cp_mrefs", "Copy method references"))
+  h3("เอกสารอ้างอิงของวิธีการ"),
+  tags$ul(lapply(method_refs, tags$li)), actionButton("cp_mrefs", "คัดลอกเอกสารอ้างอิงของวิธีการ"))
 
 about_ui <- div(class = "container", style = "max-width: 800px;",
-  h3("About this app"),
-  p(sprintf("%s is a web version of STAR (Statistical Tools for Agricultural Research) from the International Rice Research Institute (IRRI), used with IRRI permission. It runs the recovered STAR 2.0.2 R code in your own browser.", app_name)),
-  div(class = "alert alert-warning", strong("Beta."), "Results were checked against STAR 2.0.2 on the built-in examples, but this version is still under development. Check important results (for example before publishing) with another program or a statistician, and report anything that looks wrong."),
-  h4("Your data"), p("Your files are read and analysed inside your browser. They are not uploaded to any server."),
-  h4("Version"), p(code(version_label()), "Please quote this when you report a problem."),
-  h4("Maintainer"), p(app_maintainer, ". Problems are handled when time allows; there is no guaranteed response time."),
-  h4("How to cite"), p("International Rice Research Institute (IRRI). STAR: Statistical Tools for Agricultural Research, version 2.0.2, and this web version", version_label(), "(https://github.com/kanthjs/STAR-Rev). See also the Methods page."),
-  h4("Report a problem"), p(tags$a(href = "https://github.com/kanthjs/STAR-Rev/issues", target = "_blank", "GitHub Issues"), " (include the version above, the analysis you ran and, if you can, a small example file)."),
-  h4("Font"), p("The text of this app is set in Chulabhorn Likhit (Thai national font) from the Chulabhorn Royal Academy. Plots use the default font of R."),
-  h4("License"), p("GNU General Public License, version 2 or later. Source code: ", tags$a(href = "https://github.com/kanthjs/STAR-Rev", target = "_blank", "github.com/kanthjs/STAR-Rev"), ".")
+  h3("เกี่ยวกับแอปนี้"),
+  p(sprintf("%s เป็น STAR (Statistical Tools for Agricultural Research) ของสถาบันวิจัยข้าวนานาชาติ (IRRI) ฉบับเว็บ ใช้โดยได้รับอนุญาตจาก IRRI แอปนี้รันโค้ด R ของ STAR 2.0.2 ที่กู้คืนมา ภายในเบราว์เซอร์ของคุณเอง", app_name)),
+  div(class = "alert alert-warning", strong("รุ่นทดลอง (beta) "), "ผลลัพธ์ได้ตรวจเทียบกับ STAR 2.0.2 ด้วยข้อมูลตัวอย่างในแอปแล้ว แต่รุ่นนี้ยังอยู่ระหว่างการพัฒนา ผลที่สำคัญ (เช่น ก่อนตีพิมพ์) ควรตรวจสอบด้วยโปรแกรมอื่นหรือปรึกษานักสถิติ และแจ้งเมื่อพบผลที่ดูผิดปกติ"),
+  h4("ข้อมูลของคุณ"), p("ไฟล์ของคุณถูกอ่านและวิเคราะห์ภายในเบราว์เซอร์ ไม่ได้ถูกอัปโหลดไปยังเซิร์ฟเวอร์ใด"),
+  h4("รุ่นของแอป"), p(code(version_label()), " โปรดระบุรุ่นนี้เมื่อแจ้งปัญหา"),
+  h4("ผู้ดูแล"), p(app_maintainer, " ปัญหาจะได้รับการแก้ไขเมื่อมีเวลา ไม่มีการรับประกันระยะเวลาตอบกลับ"),
+  h4("การอ้างอิง"), p("International Rice Research Institute (IRRI). STAR: Statistical Tools for Agricultural Research, version 2.0.2, and this web version", version_label(), "(https://github.com/kanthjs/STAR-Rev). ดูเพิ่มเติมที่หน้า Methods"),
+  h4("แจ้งปัญหา"), p(tags$a(href = "https://github.com/kanthjs/STAR-Rev/issues", target = "_blank", "GitHub Issues"), " (ระบุรุ่นของแอปข้างต้น การวิเคราะห์ที่ใช้ และถ้าเป็นไปได้ แนบไฟล์ตัวอย่างขนาดเล็ก)"),
+  h4("ฟอนต์"), p("ข้อความในแอปนี้ใช้ฟอนต์ จุฬาภรณ์ลิขิต (Chulabhorn Likhit) ฟอนต์แห่งชาติจากราชวิทยาลัยจุฬาภรณ์ กราฟใช้ฟอนต์มาตรฐานของ R"),
+  h4("สัญญาอนุญาต"), p("GNU General Public License รุ่น 2 หรือใหม่กว่า ซอร์สโค้ด: ", tags$a(href = "https://github.com/kanthjs/STAR-Rev", target = "_blank", "github.com/kanthjs/STAR-Rev"))
 )
 
 ui <- navbarPage(
@@ -304,7 +329,7 @@ ui <- navbarPage(
                           column(8, conditionalPanel("input.plot_style == 'gg'", fluidRow(
                             column(6, selectInput("gg_error", "Error bars", c("SE" = "se", "SD" = "sd", "95% CI" = "ci"))),
                             column(6, br(), checkboxInput("gg_points", "Show observations", TRUE)))))),
-                 plot_labels_ui("gg"),
+                 plot_labels_ui("gg"), conditionalPanel("input.plot_style == 'gg'", plot_style_ui("aov")),
                  uiOutput("plot_picker"), plotOutput("means_plot", height = "420px"), plot_export_ui("aov")),
         tabPanel("Outliers & assumptions", br(),
                  radioButtons("diag_style", "Plot style", c("ggplot2" = "gg", "Classic" = "classic"), inline = TRUE),
@@ -326,16 +351,35 @@ server <- function(input, output, session) {
   observeEvent(input$home_aov, updateNavbarPage(session, "nav", selected = "Analysis of variance"))
   observeEvent(input$home_corr, updateNavbarPage(session, "nav", selected = "Correlation"))
   observeEvent(input$home_reg, updateNavbarPage(session, "nav", selected = "Regression"))
+  # ---- plot style shared by every plot ----
+  for (k in names(style_defaults)) for (s in style_screens) local({
+    k <- k; s <- s; id <- paste0(s, "_", k)
+    observeEvent(input[[id]], for (o in setdiff(style_screens, s)) {
+      oid <- paste0(o, "_", k)
+      if (!identical(input[[oid]], input[[id]])) updateSelectInput(session, oid, selected = input[[id]])
+    }, ignoreInit = TRUE)
+  })
+  plot_style <- function(p) {
+    get <- function(k) input[[paste0(p, "_", k)]] %||% style_defaults[[k]]
+    list(palette = get("pal"), theme = get("theme"), base_size = as.numeric(get("size")), legend = get("legend"))
+  }
+  # width and height in inches of a downloaded plot
+  export_dims <- function(p) {
+    d <- input[[paste0(p, "_dim")]] %||% "std"
+    cm <- suppressWarnings(as.numeric(if (d == "custom") c(input[[paste0(p, "_w")]], input[[paste0(p, "_h")]]) else export_sizes[[d]]))
+    if (length(cm) != 2 || anyNA(cm)) cm <- export_sizes$std
+    pmin(pmax(cm, 3), 60) / 2.54
+  }
   gg_version <- function() tryCatch(as.character(utils::packageVersion("ggplot2")), error = function(e) "")
   output$methods_text <- renderUI({
     sentence <- methods_sentence(gg_version())
     tagList(
-      div(class = "well well-sm", sentence), actionButton("cp_methods", "Copy sentence"),
-      h4("Software references"), tags$ul(lapply(package_refs(), tags$li)), actionButton("cp_refs", "Copy references"),
-      h4("Where each result comes from"),
-      html_table(data.frame(Result = c("ANOVA table (CRD, RCBD, split plot)", "Means comparison letters", "Correlation and p values", "Regression, ANOVA and coefficients", "Normality and variance checks, outliers", "Plots"),
-                            `Computed by` = c("R stats::aov", "agricolae (LSD.test, HSD.test, duncan.test)", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test, nortest::lillie.test, lmtest::bptest, studentized residuals from stats", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
-      p(class = "text-muted", sprintf("This session: %s, ggplot2 %s.", R.version.string, gg_version())))
+      div(class = "well well-sm", sentence), actionButton("cp_methods", "คัดลอกประโยค"),
+      h4("เอกสารอ้างอิงของซอฟต์แวร์"), tags$ul(lapply(package_refs(), tags$li)), actionButton("cp_refs", "คัดลอกเอกสารอ้างอิง"),
+      h4("ผลแต่ละส่วนคำนวณจากอะไร"),
+      html_table(data.frame(`ผลลัพธ์` = c("ตาราง ANOVA (CRD, RCBD, split plot)", "อักษรเปรียบเทียบค่าเฉลี่ย", "สหสัมพันธ์และค่า p", "การถดถอย ตาราง ANOVA และสัมประสิทธิ์", "การตรวจสอบการแจกแจงปกติ ความแปรปรวน และค่าผิดปกติ", "กราฟ"),
+                            `คำนวณโดย` = c("R stats::aov", "agricolae (LSD.test, HSD.test, duncan.test)", "R stats::cor.test", "R stats::lm", "R stats::shapiro.test, nortest::lillie.test, lmtest::bptest, studentized residuals from stats", "ggplot2 and R graphics"), check.names = FALSE, stringsAsFactors = FALSE)),
+      p(class = "text-muted", sprintf("รุ่นที่ใช้ในการใช้งานครั้งนี้: %s, ggplot2 %s",R.version.string, gg_version())))
   })
   observeEvent(input$cp_refs, session$sendCustomMessage("copy_text", list(what = "References", text = paste(package_refs(), collapse = "\n\n"))))
 observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = "Method references", text = paste(method_refs, collapse = "
@@ -449,8 +493,8 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
   plot_effect <- reactive({ r <- ok(); pe <- input$plot_effect; if (is.null(pe) || !(pe %in% c(r$factors, if (!is.null(r$cells)) c("interaction", "interaction_line")))) r$factors[1] else pe })
   use_gg <- reactive(identical(input$plot_style, "gg"))
   # the ggplot2 figure (a ggplot object); the classic style is drawn with base graphics instead
-  gg_means <- reactive(star_ggplot_means(ok(), plot_effect(), data = if (isTRUE(input$gg_points)) used_data(), error = input$gg_error %||% "se",
-                                                main = input$gg_title, xlab = input$gg_xlab, ylab = input$gg_ylab))
+  gg_means <- reactive(do.call(star_ggplot_means, c(list(ok(), plot_effect(), data = if (isTRUE(input$gg_points)) used_data(), error = input$gg_error %||% "se",
+                                                         main = input$gg_title, xlab = input$gg_xlab, ylab = input$gg_ylab), plot_style("aov"))))
   draw_means <- function() {
     if (use_gg()) print(gg_means())
     else star_plot_means(ok(), sub("_line$", "", plot_effect()), main = input$gg_title, xlab = input$gg_xlab, ylab = input$gg_ylab)
@@ -467,7 +511,8 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
         tagList(h4("Flagged observations"), p(class = "text-muted", "Row = row number in your data. |Studentized residual| > 3 = outlier, 2 to 3 = suspect."), html_table(o))
       })
   })
-  output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); if (identical(input$diag_style, "gg")) print(star_ggplot_diagnostics(dg)) else star_plot_diagnostics(dg) })
+  gg_diag <- function(dg, p) { st <- plot_style(p); star_ggplot_diagnostics(dg, st$base_size - 1, st$theme, st$legend) }
+  output$diag_plot <- renderPlot({ dg <- ok()$diagnostics; req(dg); if (identical(input$diag_style, "gg")) print(gg_diag(dg, "aov")) else star_plot_diagnostics(dg) })
   report_text <- reactive(star_report(ok())) |> bindCache(ok(), cache = star_cache)
   output$report <- renderText(paste(report_text(), collapse = "\n"))
 
@@ -487,15 +532,15 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
                                         if (length(r$data_notes)) paste(r$data_notes, collapse = " | ") else "none"))
     sheets
   })
-  output$dl_xlsx <- downloadHandler("star_anova.xlsx", function(file) writexl::write_xlsx(xlsx_sheets(), file))
-  output$dl_aov_plot <- downloadHandler(function() paste0("star_means_plot.", input$aov_fmt), function(file) {
-    fmt <- input$aov_fmt %||% "png"; dpi <- as.numeric(input$aov_dpi %||% 300)
-    if (use_gg()) { star_ggsave(gg_means(), file, width = 8, height = 5.6, dpi = dpi); return(invisible()) }
-    if (fmt == "png") png(file, width = 8 * dpi, height = 5.6 * dpi, res = dpi)
-    else if (fmt == "svg") svg(file, width = 8, height = 5.6) else pdf(file, width = 8, height = 5.6)
+  output$dl_xlsx <- downloadHandler("rdstat_anova.xlsx", function(file) writexl::write_xlsx(xlsx_sheets(), file))
+  output$dl_aov_plot <- downloadHandler(function() paste0("rdstat_means_plot.", input$aov_fmt), function(file) {
+    fmt <- input$aov_fmt %||% "png"; dpi <- as.numeric(input$aov_dpi %||% 300); wh <- export_dims("aov")
+    if (use_gg()) { star_ggsave(gg_means(), file, width = wh[1], height = wh[2], dpi = dpi); return(invisible()) }
+    if (fmt == "png") png(file, width = wh[1] * dpi, height = wh[2] * dpi, res = dpi)
+    else if (fmt == "svg") svg(file, width = wh[1], height = wh[2]) else pdf(file, width = wh[1], height = wh[2])
     on.exit(dev.off()); draw_means()
   })
-  output$dl_txt <- downloadHandler("star_anova_report.txt", function(file) writeLines(c(paste("STAR web app", version_label()), "", report_text()), file))
+  output$dl_txt <- downloadHandler("rdstat_anova_report.txt", function(file) writeLines(c(paste(app_name, "web app", version_label()), "", report_text()), file))
 
   observeEvent(input$cp_anova, session$sendCustomMessage("copy_text", list(what = "ANOVA table", text = tsv(tables()$anova))))
   observeEvent(input$cp_means, session$sendCustomMessage("copy_text", list(what = "Means tables", text = paste(
@@ -520,8 +565,8 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
   example_of <- function(p, setups) if (input[[paste0(p, "_src")]] == "ex") setups[[input[[paste0(p, "_example")]]]]
   as_error <- function(e) structure(list(message = conditionMessage(e)), class = "star_error")
   plot_download <- function(p, plot_fn) downloadHandler(
-    function() paste0("star_", p, "_plot.", input[[paste0(p, "_fmt")]] %||% "png"),
-    function(file) star_ggsave(plot_fn(), file, width = 8, height = 5.6, dpi = as.numeric(input[[paste0(p, "_dpi")]] %||% 300)))
+    function() paste0("rdstat_", p, "_plot.", input[[paste0(p, "_fmt")]] %||% "png"),
+    function(file) { wh <- export_dims(p); star_ggsave(plot_fn(), file, width = wh[1], height = wh[2], dpi = as.numeric(input[[paste0(p, "_dpi")]] %||% 300)) })
   notes_ui <- function(notes) if (length(notes)) div(class = "alert alert-warning", strong("Data checks"), tags$ul(lapply(notes, tags$li)))
   copy_button <- function(id, what, text) observeEvent(input[[id]], session$sendCustomMessage("copy_text", list(what = what, text = text())))
 
@@ -571,12 +616,12 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
       validate(need(x != y, "Choose two different variables for the scatter plot."))
       c(x, y)
     }
-    star_ggplot_correlation(r, pair, main = input$corr_title, xlab = input$corr_xlab, ylab = input$corr_ylab,
-                            type = if (v == "heat") "heatmap" else "matrix")
+    do.call(star_ggplot_correlation, c(list(r, pair, main = input$corr_title, xlab = input$corr_xlab, ylab = input$corr_ylab,
+                                            type = if (v == "heat") "heatmap" else "matrix"), plot_style("corr")))
   })
   output$corr_plot <- renderPlot(print(gg_corr()))
   output$dl_corr_plot <- plot_download("corr", gg_corr)
-  output$dl_corr_xlsx <- downloadHandler("star_correlation.xlsx", function(file) {
+  output$dl_corr_xlsx <- downloadHandler("rdstat_correlation.xlsx", function(file) {
     r <- corr_ok(); tb <- corr_tables()
     mat <- function(m) data.frame(Variable = r$vars, m, check.names = FALSE, row.names = NULL)
     writexl::write_xlsx(list(`Correlation (r)` = mat(r$r), `P values` = mat(r$p), N = mat(r$n), Pairs = r$pairs,
@@ -630,7 +675,7 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
                                                            fmt_sig(r$optimum$y), r$optimum$type, if (r$optimum$inside) "" else "; outside the range of the data")),
       h4("APA-style report"), actionButton("cp_reg_apa", "Copy"), div(class = "well well-sm", r$apa))
   })
-  gg_reg <- reactive(star_ggplot_regression(reg_ok(), main = input$reg_title, xlab = input$reg_xlab, ylab = input$reg_ylab))
+  gg_reg <- reactive(do.call(star_ggplot_regression, c(list(reg_ok(), main = input$reg_title, xlab = input$reg_xlab, ylab = input$reg_ylab), plot_style("reg"))))
   output$reg_plot <- renderPlot(print(gg_reg()))
   output$dl_reg_plot <- plot_download("reg", gg_reg)
   output$reg_diag_ui <- renderUI({
@@ -644,7 +689,7 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
         tagList(h4("Flagged observations"), p(class = "text-muted", "Row = row number in your data. |Studentized residual| > 3 = outlier, 2 to 3 = suspect."), html_table(o))
       })
   })
-  output$reg_diag_plot <- renderPlot({ dg <- reg_ok()$diagnostics; req(dg); print(star_ggplot_diagnostics(dg)) })
+  output$reg_diag_plot <- renderPlot({ dg <- reg_ok()$diagnostics; req(dg); print(gg_diag(dg, "reg")) })
   reg_predictions <- reactive({
     r <- reg_ok(); req(length(r$predictors) == 1, nzchar(trimws(input$reg_newx %||% "")))
     xs <- star_parse_number(trimws(strsplit(input$reg_newx, "[;,[:space:]]+")[[1]]))
@@ -662,7 +707,7 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
     data.frame(z[[1]], fmt_sig(z$Predicted), fmt_sig(z$Lower), fmt_sig(z$Upper), ifelse(z$Extrapolated, "yes", ""), check.names = FALSE, stringsAsFactors = FALSE) |>
       setNames(c(names(z)[1], "Predicted", "Lower CI", "Upper CI", "Extrapolated"))
   }, align = "r")
-  output$dl_reg_xlsx <- downloadHandler("star_regression.xlsx", function(file) {
+  output$dl_reg_xlsx <- downloadHandler("rdstat_regression.xlsx", function(file) {
     r <- reg_ok(); dg <- r$diagnostics
     sheets <- list(Model = data.frame(Item = c("App version", "Response", "Predictor(s)", "Shape", "Equation", "Summary", "Data checks", names(unlist(r$fit))),
                                       Value = c(version_label(), r$response, paste(r$predictors, collapse = ", "), c("line", "quadratic", "cubic")[r$degree], r$equation, r$summary,

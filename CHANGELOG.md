@@ -1,6 +1,6 @@
 # Changelog
 
-Changes to the STAR web app that can affect results are marked **(results)**. The version is shown in the app's About tab and in every downloaded file.
+Changes to the RDstat web app that can affect results are marked **(results)**. The version is shown in the app's About tab and in every downloaded file.
 
 ## 0.1.0 (unreleased)
 - First public build: ANOVA (CRD, RCBD, split plot), correlation and linear regression.
@@ -14,3 +14,5 @@ Changes to the STAR web app that can affect results are marked **(results)**. Th
 - **(results)** With unbalanced data, the N column shows each group's real count instead of the harmonic mean; Tukey uses the Tukey-Kramer method when group sizes differ.
 - Methods page now explains what each analysis does (models for CRD, RCBD and split plot, means comparison, assumption checks, correlation, regression) with the matching references.
 - Text is set in the Chulabhorn Likhit font (Chulabhorn Royal Academy); the font files are in prototype/app/www/fonts.
+- App renamed RDstat (Rice Department); downloaded files are named `rdstat_*`. Home, Methods and About pages are in Thai (the copyable methods sentence and references stay in English).
+- Plot style: colours (Okabe-Ito, greyscale, Viridis, Set2, greens), theme, font size and legend position, shared by every plot; downloaded plots can be sized for a journal column, a slide or a custom size in cm.

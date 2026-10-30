@@ -3,23 +3,47 @@
 ## Each function returns a ggplot object, so it can be printed, modified with `+`, or saved with star_ggsave().
 ##   star_ggplot_means(x, effect, data, error, points, type)  bars (or lines) of means with error bars and letters
 ##   star_ggplot_diagnostics(x)                               four residual panels
+## All take base_size, theme and legend (see star_gg_theme()); the means plot also takes a palette (see .star_gg_palette()).
 ##   star_ggsave(plot, file, width, height, dpi)              PNG / SVG / PDF export
 
-## Okabe-Ito palette (colour-blind safe); beyond 8 levels fall back to a generated palette.
+## Colours for n groups. `palette` is NULL or the name of a built-in palette (see star_gg_palettes), or a vector
+## of colours (recycled). The default, Okabe-Ito, is colour-blind safe; beyond 8 levels it falls back to a generated palette.
+star_gg_palettes <- c("okabe", "grey", "viridis", "set2", "green")
 .star_gg_palette <- function(n, palette = NULL) {
-  if (!is.null(palette)) return(rep_len(palette, n))
-  base <- c("#0072B2", "#E69F00", "#009E73", "#D55E00", "#56B4E9", "#CC79A7", "#F0E442", "#999999")
-  if (n <= length(base)) base[seq_len(n)] else grDevices::hcl.colors(n, "Dark 3")
+  if (length(palette) > 1 || (length(palette) == 1 && !palette %in% star_gg_palettes)) return(rep_len(palette, n))
+  switch(if (is.null(palette)) "okabe" else palette,
+    okabe = { base <- c("#0072B2", "#E69F00", "#009E73", "#D55E00", "#56B4E9", "#CC79A7", "#F0E442", "#999999")
+              if (n <= length(base)) base[seq_len(n)] else grDevices::hcl.colors(n, "Dark 3") },
+    grey = if (n == 1) "grey55" else grDevices::gray.colors(n, start = 0.2, end = 0.85),
+    viridis = if (n == 1) "#21908C" else grDevices::hcl.colors(n, "viridis"),
+    set2 = { base <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")
+             if (n <= length(base)) base[seq_len(n)] else grDevices::hcl.colors(n, "Set 2") },
+    green = if (n == 1) "#2E8B57" else grDevices::hcl.colors(n + 1, "Greens 3")[seq_len(n)])
+}
+## Point and line colours of the scatter, regression and heatmap plots, matching the palette
+.star_gg_accent <- function(palette = NULL) {
+  if (length(palette) > 1 || (length(palette) == 1 && !palette %in% star_gg_palettes)) return(rep_len(palette, 2))
+  switch(if (is.null(palette)) "okabe" else palette,
+    okabe = c(point = "#0072B2", line = "#D55E00"), grey = c(point = "grey60", line = "grey10"),
+    viridis = c(point = "#3B528B", line = "#5DC863"), set2 = c(point = "#8DA0CB", line = "#FC8D62"),
+    green = c(point = "#74C476", line = "#00441B"))
 }
 
-star_gg_theme <- function(base_size = 12) {
-  ggplot2::theme_classic(base_size = base_size) +
+## theme  : "classic" (axes only), "bw" (white with grid lines and a frame), "minimal" (grid lines, no frame) or
+##          "grey" (the ggplot2 default)
+## legend : "top", "right", "bottom" or "none"
+star_gg_theme <- function(base_size = 12, theme = c("classic", "bw", "minimal", "grey"), legend = "top") {
+  theme <- match.arg(theme)
+  base <- switch(theme, classic = ggplot2::theme_classic, bw = ggplot2::theme_bw, minimal = ggplot2::theme_minimal, grey = ggplot2::theme_grey)
+  base(base_size = base_size) +
     ggplot2::theme(plot.title = ggplot2::element_text(face = "bold"),
                    plot.subtitle = ggplot2::element_text(colour = "grey35", size = base_size * 0.8),
                    axis.text = ggplot2::element_text(colour = "grey15"),
-                   legend.position = "top", legend.title = ggplot2::element_text(face = "bold"),
+                   legend.position = legend, legend.title = ggplot2::element_text(face = "bold"),
                    strip.background = ggplot2::element_blank(), strip.text = ggplot2::element_text(face = "bold"))
 }
+## legend = "auto" keeps the position that suits the plot
+.star_gg_legend <- function(legend, auto = "top") if (is.null(legend) || identical(legend, "auto")) auto else legend
 
 ## A user-supplied text, or the default when it is NULL / empty
 .star_gg_or <- function(x, default) if (is.null(x) || is.na(x[1]) || !nzchar(trimws(x[1]))) default else x[1]
@@ -41,8 +65,10 @@ star_gg_theme <- function(base_size = 12) {
 ##          "interaction_line"   -> the same as an interaction (profile) plot with lines
 ## data   : the data frame given to star_aov(); only needed for points = TRUE
 star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd", "ci"), points = !is.null(data),
-                              main = NULL, xlab = NULL, ylab = NULL, palette = NULL, base_size = 12) {
+                              main = NULL, xlab = NULL, ylab = NULL, palette = NULL, base_size = 12,
+                              theme = "classic", legend = "auto") {
   error <- match.arg(error)
+  th <- star_gg_theme(base_size, theme, .star_gg_legend(legend))
   if (!inherits(x, "star_aov")) stop("'x' must be a result of star_aov() or star_splitplot().")
   inter <- !is.null(effect) && effect %in% c("interaction", "interaction_line")
   if (inter && is.null(x$cells)) stop("An interaction plot needs a two-factor result.")
@@ -82,7 +108,7 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
     return(p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
              ggplot2::labs(x = .star_gg_or(xlab, f), y = y_lab, title = .star_gg_or(main, paste("Mean", x$response, "by", f)),
                            subtitle = paste(strwrap(sprintf("Bars: %s%s. %s", .star_gg_err_label[[error]], if (!is.null(raw)) "; circles: observations" else "", note), 70), collapse = "\n")) +
-             star_gg_theme(base_size) + .star_gg_xlab_theme(levels(m$Treatment)))
+             th + .star_gg_xlab_theme(levels(m$Treatment)))
   }
 
   # ---- interaction ----
@@ -131,11 +157,11 @@ star_ggplot_means <- function(x, effect = NULL, data = NULL, error = c("se", "sd
   }
   p + ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     ggplot2::labs(x = .star_gg_or(xlab, f2), y = y_lab, title = ttl, subtitle = paste(strwrap(sub, 70), collapse = "\n")) +
-    star_gg_theme(base_size) + .star_gg_xlab_theme(levels(cd$x))
+    th + .star_gg_xlab_theme(levels(cd$x))
 }
 
 ## Residual diagnostics in one faceted figure: residuals vs fitted, normal Q-Q, scale-location, histogram.
-star_ggplot_diagnostics <- function(x, base_size = 11) {
+star_ggplot_diagnostics <- function(x, base_size = 11, theme = "classic", legend = "auto") {
   dg <- if (inherits(x, "star_diagnostics")) x else x$diagnostics
   if (is.null(dg)) stop("No diagnostics available for this result.")
   r <- dg$residuals
@@ -172,7 +198,7 @@ star_ggplot_diagnostics <- function(x, base_size = 11) {
     ggplot2::facet_wrap(~panel, scales = "free", ncol = 2) +
     ggplot2::labs(x = NULL, y = NULL, title = "Residual diagnostics",
                   subtitle = sprintf("Studentized residuals. Dashed lines: +/-%s (outlier cut-off); numbers: row in your data", cut)) +
-    star_gg_theme(base_size)
+    star_gg_theme(base_size, theme, .star_gg_legend(legend))
   if (nrow(lab)) p <- p + ggplot2::geom_text(data = lab, ggplot2::aes(label = Row), vjust = -0.8, size = 3, colour = "#D55E00")
   p + ggplot2::scale_colour_manual(values = c(cut = "#D55E00", zero = "grey60"), guide = "none")
 }

@@ -101,6 +101,24 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   check(!is.null(reg_ok()$optimum) && reg_ok()$optimum$inside, "Regression: quadratic finds an optimum inside the range")
   check(file.size(output$dl_reg_plot) > 3000, "Regression: curve png")
   session$setInputs(reg_newx = "50, 100, 400"); check(identical(reg_predictions()$Extrapolated, c(FALSE, FALSE, TRUE)), "Regression: predictions flag extrapolation")
+
+  # ---- plot style and download size ----
+  png_size <- function(f) { b <- readBin(f, "raw", 24); c(sum(as.integer(b[17:20]) * 256^(3:0)), sum(as.integer(b[21:24]) * 256^(3:0))) }
+  session$setInputs(reg_pal = "grey", reg_theme = "bw", reg_size = "9", reg_legend = "none")
+  g <- gg_reg(); check(g$theme$text$size == 9 && identical(g$theme$legend.position, "none") && inherits(g$theme$panel.border, "element_rect"), "Plot style: font size, legend and theme are applied")
+  check(identical(ggplot2::layer_data(g, 3)$fill[1], "grey60"), "Plot style: greyscale points")
+  for (pal in style_choices$pal) for (th in style_choices$theme) { session$setInputs(reg_pal = pal, reg_theme = th); ggplot2::ggplot_build(gg_reg()) }
+  cat("ok   regression plot builds with every palette and theme\n")
+  session$setInputs(reg_fmt = "png", reg_dpi = "300", reg_dim = "j1")
+  check(all(abs(png_size(output$dl_reg_plot) - round(c(8.5, 6.5) / 2.54 * 300)) <= 1), "Download size: journal 1 column at 300 dpi")
+  session$setInputs(reg_dim = "custom", reg_w = 10, reg_h = 5)
+  check(all(abs(png_size(output$dl_reg_plot) - round(c(10, 5) / 2.54 * 300)) <= 1), "Download size: custom 10 x 5 cm")
+  session$setInputs(reg_w = NA); check(all(abs(png_size(output$dl_reg_plot) - round(c(20, 14) / 2.54 * 300)) <= 1), "Download size: empty custom size falls back to standard")
+  session$setInputs(reg_dim = "std", reg_pal = "okabe", reg_theme = "classic", reg_size = "12", reg_legend = "auto")
+  two <- star_aov(read.csv("example_rcbd2.csv"), "Yield", c("Nitrogen", "Variety"), "Rep", design = "RCBD", report = FALSE)
+  for (pal in style_choices$pal) for (eff in c("Nitrogen", "interaction", "interaction_line"))
+    ggplot2::ggplot_build(star_ggplot_means(two, eff, palette = pal, theme = "minimal", legend = "bottom"))
+  cat("ok   means plot builds with every palette\n")
   session$setInputs(reg_pred = c("SeedingRate", "GrainYield"), go_reg = 3); check(inherits(reg_res(), "star_error"), "Regression: bad choice is reported as an error")
   session$setInputs(cp_reg_anova = 1, cp_reg_coef = 1, cp_reg_apa = 1)
   cat("ok   regression copy buttons ran\n")
@@ -109,7 +127,7 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   session$setInputs(home_aov = 1, home_corr = 1, home_reg = 1, cp_methods = 1)
   check(grepl("R [0-9]+[.][0-9]+", methods_sentence("3.5.0")) && grepl("ggplot2 3.5.0", methods_sentence("3.5.0")), "Methods sentence names R and ggplot2 versions")
   check(nzchar(version_label()) && nzchar(app_name), "App name and version label exist")
-  check(grepl("Where each result comes from", paste(as.character(output$methods_text$html), collapse = "")), "Methods page renders")
+  check(grepl("ผลแต่ละส่วนคำนวณจากอะไร", paste(as.character(output$methods_text$html), collapse = "")), "Methods page renders")
 
   # ---- mean comparison comes from agricolae: letters must agree with the critical difference ----
   d <- read.csv("example_crd.csv"); d$Insecticide <- factor(d$Insecticide)

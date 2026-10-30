@@ -256,15 +256,32 @@ Shiny.addCustomMessageHandler('copy_text', function(msg) {
   } else { fallback(); }
 });"
 
-home_card <- function(id, title, text) div(class = "col-sm-4", div(class = "well", h4(title), p(text), actionButton(id, "เปิด", class = "btn-primary")))
-home_ui <- div(class = "container", style = "max-width: 900px;",
-  h3("ต้องการวิเคราะห์อะไร"),
-  p("เลือกคำถามที่ตรงกับข้อมูลของคุณ กลับมาที่หน้านี้ได้ทุกเมื่อ"),
-  div(class = "row",
-    home_card("home_aov", "เปรียบเทียบสิ่งทดลอง", "กลุ่มต่าง ๆ (พันธุ์ อัตราปุ๋ย ฯลฯ) ให้ผลผลิตหรือค่าที่วัดแตกต่างกันหรือไม่ วิเคราะห์ความแปรปรวน (ANOVA) สำหรับแผนการทดลอง CRD, RCBD และ split plot พร้อมการเปรียบเทียบค่าเฉลี่ย"),
-    home_card("home_corr", "ดูความสัมพันธ์ระหว่างตัวแปร", "ค่าที่วัดตั้งแต่สองค่าขึ้นไปเพิ่มหรือลดไปด้วยกันหรือไม่ (เช่น ความสูงต้นกับผลผลิต) วิเคราะห์สหสัมพันธ์ (correlation) พร้อมกราฟ"),
-    home_card("home_reg", "ทำนายค่า", "ค่าตอบสนองเปลี่ยนไปอย่างไรตามตัวแปรอิสระหนึ่งตัวหรือมากกว่า และค่าที่คาดหวังเมื่อ x เป็นค่าใหม่คือเท่าไร วิเคราะห์การถดถอย (regression) พร้อมสมการและการทำนาย")),
-  div(class = "alert alert-info", "ทุกหน้าจอเริ่มต้นด้วยข้อมูลตัวอย่าง เลือก Upload file เพื่อใช้ไฟล์ .csv หรือ .xlsx ของคุณเอง (แถวแรกเป็นชื่อคอลัมน์) ข้อมูลของคุณอยู่ในเบราว์เซอร์ของคุณเท่านั้น"))
+home_card <- function(id, icon_name, title, text, examples) bslib::card(class = "home-card",
+  bslib::card_body(div(class = "icon", icon(icon_name)), h4(title), p(text), p(class = "text-muted small mb-0", examples)),
+  bslib::card_footer(class = "bg-white border-0", actionButton(id, tagList("เริ่มวิเคราะห์ ", icon("arrow-right")), class = "btn-primary w-100")))
+home_step <- function(n, title, text) div(class = "step", div(class = "num", n), div(strong(title), br(), span(class = "text-muted small", text)))
+home_ui <- div(class = "container", style = "max-width: 1040px;",
+  div(class = "hero",
+    h2(icon("seedling"), " ", app_name),
+    p("เครื่องมือวิเคราะห์สถิติสำหรับงานทดลองเกษตร พัฒนาต่อยอดจาก STAR ของ IRRI ใช้งานผ่านเบราว์เซอร์ได้ทันที ไม่ต้องติดตั้งโปรแกรม")),
+  h4("ต้องการวิเคราะห์อะไร", class = "mt-0"),
+  bslib::layout_column_wrap(width = "280px", fill = FALSE, heights_equal = "row",
+    home_card("home_aov", "chart-column", "เปรียบเทียบสิ่งทดลอง",
+              "กลุ่มต่าง ๆ ให้ผลผลิตหรือค่าที่วัดแตกต่างกันหรือไม่ วิเคราะห์ความแปรปรวน (ANOVA) พร้อมเปรียบเทียบค่าเฉลี่ย",
+              "เช่น พันธุ์ข้าว อัตราปุ๋ย · CRD, RCBD, split plot"),
+    home_card("home_corr", "circle-nodes", "ดูความสัมพันธ์ระหว่างตัวแปร",
+              "ค่าที่วัดตั้งแต่สองค่าขึ้นไปเพิ่มหรือลดไปด้วยกันหรือไม่ วิเคราะห์สหสัมพันธ์ (correlation) พร้อมกราฟ",
+              "เช่น ความสูงต้นกับผลผลิต · Pearson, Spearman, Kendall"),
+    home_card("home_reg", "chart-line", "ทำนายค่า",
+              "ค่าตอบสนองเปลี่ยนไปอย่างไรตามตัวแปรอิสระ ได้สมการและค่าทำนายที่ x ใหม่ วิเคราะห์การถดถอย (regression)",
+              "เช่น ผลผลิตตามอัตราเมล็ดพันธุ์ · เส้นตรง, พหุนาม, พหุคูณ")),
+  h4("ใช้งานอย่างไร"),
+  div(class = "steps",
+    home_step(1, "เลือกการวิเคราะห์", "จากการ์ดด้านบน หรือเมนูด้านบนของหน้า"),
+    home_step(2, "เลือกข้อมูล", "เริ่มด้วยข้อมูลตัวอย่าง หรืออัปโหลดไฟล์ .csv / .xlsx (แถวแรกเป็นชื่อคอลัมน์)"),
+    home_step(3, "กด Run แล้วดูผล", "ตาราง กราฟ และดาวน์โหลดเป็น Excel หรือรูปภาพ")),
+  div(class = "alert alert-success d-flex gap-2 align-items-start", icon("lock"),
+      span("ข้อมูลของคุณถูกวิเคราะห์ในเบราว์เซอร์ของคุณเท่านั้น ไม่ได้ถูกส่งไปยังเซิร์ฟเวอร์ใด")))
 
 source("methods.R", local = TRUE)   # methods_sections, method_refs
 
@@ -291,17 +308,42 @@ about_ui <- div(class = "container", style = "max-width: 800px;",
   h4("สัญญาอนุญาต"), p("GNU General Public License รุ่น 2 หรือใหม่กว่า ซอร์สโค้ด: ", tags$a(href = "https://github.com/kanthjs/STAR-Rev", target = "_blank", "github.com/kanthjs/STAR-Rev"))
 )
 
-ui <- navbarPage(
-  title = paste(app_name, "(beta)"), id = "nav",
-  header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML("@font-face { font-family: 'Chulabhorn Likit'; src: url('fonts/ChulabhornLikitText-Regular.ttf') format('truetype'); font-weight: normal; }
+# Bootstrap 5 through bslib. bs_theme(version = 5) with no Sass variables changed is served precompiled, so the
+# browser does not compile Sass when the app opens; the colours of this app are set in app_css instead.
+brand <- c(main = "#2E7D32", dark = "#1B5E20", light = "#E8F5E9")
+app_css <- sprintf("@font-face { font-family: 'Chulabhorn Likit'; src: url('fonts/ChulabhornLikitText-Regular.ttf') format('truetype'); font-weight: normal; }
     @font-face { font-family: 'Chulabhorn Likit'; src: url('fonts/ChulabhornLikitText-Bold.ttf') format('truetype'); font-weight: bold; }
-    body, .btn, input, select, textarea, .selectize-input, .selectize-dropdown { font-family: 'Chulabhorn Likit', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 15px; }
-    .navbar-nav > li.dropdown:last-child { float: right; } .navbar-nav > li > a { padding-left: 18px; padding-right: 18px; }
-    .btn { margin: 0 4px 8px 0; } h4 { margin-top: 18px; }
-    details.help-box { margin: 4px 0 14px; font-size: 13px; } details.help-box summary { cursor: pointer; color: #337ab7; } .help-body { padding: 6px 0 0; color: #555; }
-    details.plot-labels { margin-bottom: 12px; } details.plot-labels summary { cursor: pointer; color: #337ab7; margin-bottom: 8px; }
-    html.shiny-busy body::after { content: 'Calculating...'; position: fixed; top: 10px; right: 14px; z-index: 9999; padding: 4px 12px;
-                                  border-radius: 4px; background: #2c3e50; color: #fff; font-size: 13px; }"))),
+    :root { --bs-body-font-family: 'Chulabhorn Likit', 'Helvetica Neue', Helvetica, Arial, sans-serif; --bs-body-font-size: 15px;
+            --bs-primary: %1$s; --bs-primary-rgb: 46, 125, 50; --bs-link-color: %1$s; --bs-link-color-rgb: 46, 125, 50;
+            --bs-link-hover-color: %2$s; --bs-link-hover-color-rgb: 27, 94, 32; --bs-body-bg: #f6f8f6; }
+    .btn, input, select, textarea, .selectize-input, .selectize-dropdown { font-family: var(--bs-body-font-family); }
+    .btn-primary { --bs-btn-bg: %1$s; --bs-btn-border-color: %1$s; --bs-btn-hover-bg: %2$s; --bs-btn-hover-border-color: %2$s;
+                   --bs-btn-active-bg: %2$s; --bs-btn-active-border-color: %2$s; --bs-btn-disabled-bg: %1$s; --bs-btn-disabled-border-color: %1$s; }
+    .btn { margin: 0 4px 8px 0; border-radius: 8px; } h4 { margin-top: 18px; }
+    .btn-default:not(.btn-primary) { padding: 3px 12px; font-size: 13px; background: #fff; border: 1px solid #cfd8cf; color: #2b3a2c; }
+    .btn-default:not(.btn-primary):hover { background: %3$s; border-color: %1$s; color: %2$s; }
+    .navbar-brand { font-weight: bold; letter-spacing: .3px; } .navbar-brand .badge { font-weight: normal; margin-left: 6px; vertical-align: middle; }
+    .navbar .nav-link { padding-left: 14px !important; padding-right: 14px !important; }
+    .well { background: #fff; border: 1px solid #e3e8e3; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .nav-tabs .nav-link.active { color: %1$s; font-weight: bold; border-top: 3px solid %1$s; }
+    .shiny-input-container input[type=radio]:checked, .shiny-input-container input[type=checkbox]:checked { background-color: %1$s; border-color: %1$s; }
+    .shiny-input-container label, .control-label { font-weight: bold; }
+    details.help-box { margin: 4px 0 14px; font-size: 13px; } details.help-box summary { cursor: pointer; color: var(--bs-link-color); } .help-body { padding: 6px 0 0; color: #555; }
+    details.plot-labels { margin-bottom: 12px; } details.plot-labels summary { cursor: pointer; color: var(--bs-link-color); margin-bottom: 8px; }
+    .hero { background: linear-gradient(135deg, %1$s, %2$s); color: #fff; border-radius: 16px; padding: 32px 36px; margin: 8px 0 24px; }
+    .hero h2 { font-weight: bold; margin: 0 0 6px; } .hero p { margin: 0; opacity: .92; font-size: 16px; }
+    .home-card { border: 1px solid #e3e8e3; border-radius: 14px; transition: box-shadow .15s, transform .15s; }
+    .home-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(-2px); }
+    .home-card .icon { width: 52px; height: 52px; border-radius: 12px; background: %3$s; color: %1$s; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 10px; }
+    .home-card h4 { margin-top: 0; font-size: 1.2rem; font-weight: bold; } .home-card .card-body { gap: .4rem; } .home-card p { color: #555; font-size: 14px; }
+    .steps { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 20px; } .step { flex: 1 1 200px; display: flex; gap: 10px; align-items: flex-start; }
+    .step .num { flex: none; width: 30px; height: 30px; border-radius: 50%%; background: %1$s; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; }", brand[["main"]], brand[["dark"]], brand[["light"]])
+
+ui <- bslib::page_navbar(
+  title = tags$span(icon("seedling"), app_name, tags$span(class = "badge bg-light text-success", "beta")), window_title = app_name, id = "nav",
+  theme = bslib::bs_theme(version = 5), fillable = FALSE, lang = "th",
+  navbar_options = bslib::navbar_options(bg = brand[["main"]], theme = "dark"),
+  header = tags$head(tags$script(HTML(copy_js)), tags$style(HTML(app_css)), useBusyIndicators()),
   tabPanel("Home", home_ui),
   tabPanel("Analysis of variance", sidebarLayout(
     sidebarPanel(
@@ -343,7 +385,8 @@ ui <- navbarPage(
   tabPanel("Correlation", corr_ui),
   tabPanel("Regression", reg_ui),
   # information pages are kept apart from the three analyses, in a menu on the right
-  navbarMenu("Info", tabPanel("Methods", methods_ui), tabPanel("About", about_ui))
+  bslib::nav_spacer(),
+  bslib::nav_menu("Info", tabPanel("Methods", methods_ui), tabPanel("About", about_ui), align = "right")
 )
 
 # ---- server ----------------------------------------------------------------------------------------------------

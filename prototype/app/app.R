@@ -94,7 +94,23 @@ data_preview_ui <- function(d, n = 10) {
           html_table(shown))
 }
 # shown while nothing has been run yet
-run_hint <- function(button) div(class = "alert alert-info", sprintf("Choose your data and variables on the left, then press %s.", button))
+run_hint <- function(button) div(class = "empty-state", icon("chart-simple"),
+  h5("No results yet"), p(sprintf("Choose your data and variables, then press %s.", button)),
+  p(class = "small", "Each screen starts with a built-in example, so you can press it right away to see what you get."))
+
+# sidebar parts: numbered steps, options folded away, and a Run button that stays in view
+side_step <- function(n, title, ...) div(class = "side-step", div(class = "side-step-title", span(class = "num", n), title), ...)
+advanced_box <- function(...) tags$details(class = "advanced", tags$summary(icon("sliders"), " Advanced options"), div(class = "advanced-body", ...))
+run_bar <- function(id, label) div(class = "run-bar", actionButton(id, tagList(icon("play"), " ", label), class = "btn-primary w-100"))
+
+# results: a row of key numbers, then each table in a card with its copy button in the header
+key_stats <- function(...) div(class = "key-stats", lapply(Filter(Negate(is.null), list(...)), function(s)
+  div(class = "key-stat", div(class = "label", s$label), div(class = "value", s$value), if (!is.null(s$note)) div(class = "note", s$note))))
+stat <- function(label, value, note = NULL) list(label = label, value = value, note = note)
+result_card <- function(title, ..., copy = NULL, copy_label = "Copy") bslib::card(class = "result-card",
+  bslib::card_header(class = "d-flex justify-content-between align-items-center", span(title),
+                     if (!is.null(copy)) actionButton(copy, tagList(icon("copy"), " ", copy_label), class = "btn-sm")),
+  bslib::card_body(...))
 # settings changed after the last run: the results on the screen no longer match the controls
 stale_note <- function() div(class = "alert alert-warning", "The settings have changed since the last run. Press the Run button to update the results.")
 
@@ -155,7 +171,7 @@ reg_setup <- list(cars_multi = list(file = "example_cars.csv", resp = "mpg", pre
 
 # data source + labels + file export controls shared by the correlation and regression screens
 data_source_ui <- function(p, examples) tagList(
-  radioButtons(paste0(p, "_src"), "Data", c("Built-in example" = "ex", "Upload file" = "up")),
+  radioButtons(paste0(p, "_src"), NULL, c("Built-in example" = "ex", "Upload file" = "up"), inline = TRUE),
   conditionalPanel(sprintf("input.%s_src == 'ex'", p), selectInput(paste0(p, "_example"), "Example", examples)),
   conditionalPanel(sprintf("input.%s_src == 'up'", p), fileInput(paste0(p, "_file"), "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))))
 # the label boxes are folded away until wanted, so that the plot comes first on a small screen
@@ -198,14 +214,16 @@ plot_export_ui <- function(p) tagList(fluidRow(
 
 corr_ui <- sidebarLayout(
   sidebarPanel(
-    data_source_ui("corr", corr_examples),
-    uiOutput("corr_pickers"),
-    help_box("What does this mean?", p("Correlation measures how strongly two variables move together, from -1 to +1. Pearson suits straight-line relationships of measured values; Spearman and Kendall use ranks and suit curved or skewed data. A small p value (below the significance level) means the correlation is unlikely to be zero. It does not show cause and effect.")),
-    selectInput("corr_method", "Method", c("Pearson (linear)" = "pearson", "Spearman (ranks)" = "spearman", "Kendall (ranks)" = "kendall")),
-    selectInput("corr_alt", "Alternative", c("Two-sided" = "two.sided", "Positive (greater)" = "greater", "Negative (less)" = "less")),
-    selectInput("corr_adjust", "Adjust p values for many pairs", c("None (as in STAR)" = "none", "Holm" = "holm", "Bonferroni" = "bonferroni", "Benjamini-Hochberg" = "BH")),
-    selectInput("corr_alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
-    actionButton("go_corr", "Run correlation", class = "btn-primary")),
+    side_step(1, "Data", data_source_ui("corr", corr_examples)),
+    side_step(2, "Variables and method",
+      uiOutput("corr_pickers"),
+      selectInput("corr_method", "Method", c("Pearson (linear)" = "pearson", "Spearman (ranks)" = "spearman", "Kendall (ranks)" = "kendall")),
+      help_box("What does this mean?", p("Correlation measures how strongly two variables move together, from -1 to +1. Pearson suits straight-line relationships of measured values; Spearman and Kendall use ranks and suit curved or skewed data. A small p value (below the significance level) means the correlation is unlikely to be zero. It does not show cause and effect."))),
+    advanced_box(
+      selectInput("corr_alt", "Alternative", c("Two-sided" = "two.sided", "Positive (greater)" = "greater", "Negative (less)" = "less")),
+      selectInput("corr_adjust", "Adjust p values for many pairs", c("None (as in STAR)" = "none", "Holm" = "holm", "Bonferroni" = "bonferroni", "Benjamini-Hochberg" = "BH")),
+      selectInput("corr_alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10))),
+    run_bar("go_corr", "Run correlation")),
   mainPanel(
     uiOutput("corr_msg"),
     tabsetPanel(
@@ -215,13 +233,14 @@ corr_ui <- sidebarLayout(
 
 reg_ui <- sidebarLayout(
   sidebarPanel(
-    data_source_ui("reg", reg_examples),
-    uiOutput("reg_pickers"),
-    conditionalPanel("!input.reg_pred || input.reg_pred.length <= 1",
-      help_box("What does this mean?", p("Regression describes how the response (y) changes with the predictor(s) (x). R-squared is the share of the variation in y explained by the model (1 = all). A coefficient with p below the significance level contributes to the model. Predictions outside the range of your data are extrapolations and unreliable.")),
-      radioButtons("reg_degree", "Shape of the relationship", c("Straight line" = "1", "Quadratic (curve with a peak)" = "2", "Cubic" = "3"), inline = TRUE)),
-    selectInput("reg_alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
-    actionButton("go_reg", "Run regression", class = "btn-primary")),
+    side_step(1, "Data", data_source_ui("reg", reg_examples)),
+    side_step(2, "Variables and model",
+      uiOutput("reg_pickers"),
+      conditionalPanel("!input.reg_pred || input.reg_pred.length <= 1",
+        radioButtons("reg_degree", "Shape of the relationship", c("Straight line" = "1", "Quadratic (curve with a peak)" = "2", "Cubic" = "3"))),
+      help_box("What does this mean?", p("Regression describes how the response (y) changes with the predictor(s) (x). R-squared is the share of the variation in y explained by the model (1 = all). A coefficient with p below the significance level contributes to the model. Predictions outside the range of your data are extrapolations and unreliable."))),
+    advanced_box(selectInput("reg_alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10))),
+    run_bar("go_reg", "Run regression")),
   mainPanel(
     uiOutput("reg_msg"),
     tabsetPanel(
@@ -337,7 +356,27 @@ app_css <- sprintf("@font-face { font-family: 'Chulabhorn Likit'; src: url('font
     .home-card .icon { width: 52px; height: 52px; border-radius: 12px; background: %3$s; color: %1$s; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 10px; }
     .home-card h4 { margin-top: 0; font-size: 1.2rem; font-weight: bold; } .home-card .card-body { gap: .4rem; } .home-card p { color: #555; font-size: 14px; }
     .steps { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 20px; } .step { flex: 1 1 200px; display: flex; gap: 10px; align-items: flex-start; }
-    .step .num { flex: none; width: 30px; height: 30px; border-radius: 50%%; background: %1$s; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; }", brand[["main"]], brand[["dark"]], brand[["light"]])
+    .step .num { flex: none; width: 30px; height: 30px; border-radius: 50%%; background: %1$s; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    .side-step { padding-bottom: 6px; margin-bottom: 12px; border-bottom: 1px solid #edf1ed; }
+    .side-step-title { display: flex; align-items: center; gap: 8px; font-weight: bold; margin-bottom: 8px; }
+    .side-step-title .num { width: 24px; height: 24px; border-radius: 50%%; background: %1$s; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    details.advanced { margin: 4px 0 8px; } details.advanced > summary { cursor: pointer; color: var(--bs-link-color); font-weight: bold; padding: 4px 0; }
+    .advanced-body { padding: 8px 0 0; }
+    .run-bar { position: sticky; bottom: 0; z-index: 5; background: #fff; margin: 8px -16px -16px; padding: 12px 16px; border-top: 1px solid #edf1ed; border-radius: 0 0 12px 12px; }
+    .run-bar .btn { margin: 0; padding: 9px; font-weight: bold; }
+    .key-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 4px 0 16px; }
+    .key-stat { background: #fff; border: 1px solid #e3e8e3; border-left: 4px solid %1$s; border-radius: 10px; padding: 10px 14px; }
+    .key-stat .label { font-size: 12px; color: #667; text-transform: uppercase; letter-spacing: .4px; }
+    .key-stat .value { font-size: 22px; font-weight: bold; color: #1d2b1e; line-height: 1.3; }
+    .key-stat .note { font-size: 12px; color: #667; }
+    .result-card { border-radius: 12px; border-color: #e3e8e3; margin-bottom: 16px; }
+    .result-card .card-header { background: #fff; font-weight: bold; border-bottom: 1px solid #edf1ed; padding: 8px 16px; }
+    .result-card .card-header .btn { margin: 0; }
+    .result-card h6 { font-weight: bold; margin: 6px 0 4px; } .result-card .table { margin-bottom: 8px; }
+    .table > thead th { background: %3$s; border-bottom: 2px solid %1$s; white-space: nowrap; }
+    .equation { font-family: monospace; font-size: 15px; background: %3$s; padding: 10px 14px; border-radius: 8px; }
+    .empty-state { text-align: center; color: #667; background: #fff; border: 2px dashed #d5ded5; border-radius: 14px; padding: 40px 24px; margin-bottom: 16px; }
+    .empty-state i { font-size: 36px; color: %1$s; margin-bottom: 10px; } .empty-state h5 { font-weight: bold; color: #333; }", brand[["main"]], brand[["dark"]], brand[["light"]])
 
 ui <- bslib::page_navbar(
   title = tags$span(icon("seedling"), app_name, tags$span(class = "badge bg-light text-success", "beta")), window_title = app_name, id = "nav",
@@ -347,19 +386,23 @@ ui <- bslib::page_navbar(
   tabPanel("Home", home_ui),
   tabPanel("Analysis of variance", sidebarLayout(
     sidebarPanel(
-      radioButtons("design", "Experimental design", c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD",
-                                                "Split plot in RCBD" = "SplitRCBD")),
-      radioButtons("src", "Data", c("Built-in example" = "ex", "Upload file" = "up")),
-      conditionalPanel("input.src == 'ex'", uiOutput("example_picker")),
-      conditionalPanel("input.src == 'up'", fileInput("file", "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx"))),
-      uiOutput("var_pickers"),
-      selectInput("pw", "Mean comparison",
-                  c("Automatic: LSD if <= 5 levels, else Tukey" = "auto", "LSD" = "LSD", "Tukey HSD" = "HSD",
-                    "Duncan (DMRT)" = "duncan")),
-      helpText("Letters are shown when the effect is significant."),
-      help_box("What does this mean?", p(strong("CRD:"), "treatments were assigned completely at random, no blocks."), p(strong("RCBD:"), "plots were grouped into blocks (replications) of similar conditions and every treatment appears once in each block."), p(strong("Split plot:"), "one factor (main plot) is applied to large plots and a second factor (sub plot) within each."), p(strong("Means comparison:"), "LSD is the least strict, Duncan (DMRT) is in between, and Tukey HSD is the strictest: it is the safest when there are many levels because it controls the chance of a false difference among all pairs. Means sharing a letter are not significantly different.")),
-      selectInput("alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10)),
-      actionButton("go_aov", "Run ANOVA", class = "btn-primary")
+      side_step(1, "Experimental design",
+        radioButtons("design", NULL, c("Completely randomized (CRD)" = "CRD", "Randomized complete block (RCBD)" = "RCBD",
+                                       "Split plot in RCBD" = "SplitRCBD")),
+        help_box("Which design?", p(strong("CRD:"), "treatments were assigned completely at random, no blocks."), p(strong("RCBD:"), "plots were grouped into blocks (replications) of similar conditions and every treatment appears once in each block."), p(strong("Split plot:"), "one factor (main plot) is applied to large plots and a second factor (sub plot) within each."))),
+      side_step(2, "Data",
+        radioButtons("src", NULL, c("Built-in example" = "ex", "Upload file" = "up"), inline = TRUE),
+        conditionalPanel("input.src == 'ex'", uiOutput("example_picker")),
+        conditionalPanel("input.src == 'up'", fileInput("file", "Data file (.csv, .txt, .xlsx)", accept = c(".csv", ".txt", ".tsv", ".xlsx")))),
+      side_step(3, "Variables", uiOutput("var_pickers")),
+      advanced_box(
+        selectInput("pw", "Mean comparison",
+                    c("Automatic: LSD if <= 5 levels, else Tukey" = "auto", "LSD" = "LSD", "Tukey HSD" = "HSD",
+                      "Duncan (DMRT)" = "duncan")),
+        helpText("Letters are shown when the effect is significant."),
+        help_box("Which test?", p("LSD is the least strict, Duncan (DMRT) is in between, and Tukey HSD is the strictest: it is the safest when there are many levels because it controls the chance of a false difference among all pairs. Means sharing a letter are not significantly different.")),
+        selectInput("alpha", "Significance level", c("0.05" = 0.05, "0.01" = 0.01, "0.10" = 0.10))),
+      run_bar("go_aov", "Run ANOVA")
     ),
     mainPanel(
       uiOutput("aov_msg"),
@@ -509,21 +552,35 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
 
   output$results_ui <- renderUI({
     r <- ok(); tb <- tables()
+    sig <- r$effects$Effect[r$effects$Significant %in% TRUE]
+    # with a significant interaction the overall means are not compared, so the highest cell mean is shown instead
+    top_stat <- if (isTRUE(r$interaction_significant) && !is.null(r$cells)) {
+      cl <- r$cells[which.max(r$cells$Mean), ]
+      stat("Highest cell mean", fmt_n(cl$Mean), paste(r$factors, "=", c(cl[[r$factors[1]]], cl[[r$factors[2]]]), collapse = ", "))
+    } else {
+      top_f <- if (length(intersect(sig, r$factors))) intersect(sig, r$factors)[1] else r$factors[1]
+      top <- r$means[[top_f]][which.max(r$means[[top_f]]$Mean), ]
+      stat(paste("Highest mean of", top_f), fmt_n(top$Mean), top$Treatment)
+    }
     tagList(
-      if (length(r$data_notes)) div(class = "alert alert-warning", strong("Data checks"),
-                                    tags$ul(lapply(r$data_notes, tags$li))),
+      notes_ui(r$data_notes),
       div(class = if (r$significant || r$interaction_significant) "alert alert-success" else "alert alert-info", r$summary),
-      h4("Analysis of variance"), actionButton("cp_anova", "Copy table"), html_table(tb$anova),
-      actionButton("cp_means", "Copy means tables"),
-      lapply(names(tb$means), function(f) tagList(h4(paste("Means of", f)), html_table(tb$means[[f]]))),
-      if (!is.null(tb$cells)) tagList(h4(paste("Cell means:", paste(r$factors, collapse = " x "))), html_table(tb$cells)),
+      key_stats(
+        stat("Significant effects", sprintf("%d of %d", length(sig), nrow(r$effects)), if (length(sig)) paste(sig, collapse = ", ") else "none"),
+        stat("Grand mean", fmt_n(r$grand_mean), r$response),
+        stat("CV", if (is.null(r$cv_a)) sprintf("%.1f%%", r$cv) else sprintf("%.1f%% / %.1f%%", r$cv_a, r$cv_b), if (!is.null(r$cv_a)) "Error (a) / Error (b)"),
+        top_stat),
+      result_card("Analysis of variance", html_table(tb$anova), copy = "cp_anova", copy_label = "Copy table"),
+      result_card("Means", copy = "cp_means", copy_label = "Copy means tables",
+        lapply(names(tb$means), function(f) tagList(h6(paste("Means of", f)), html_table(tb$means[[f]]))),
+        if (!is.null(tb$cells)) tagList(h6(paste("Cell means:", paste(r$factors, collapse = " x "))), html_table(tb$cells))),
       lapply(names(tb$simple), function(nm) {
         sm <- r$simple[[nm]]
-        tagList(h4(sprintf("Comparison of %s at each level of %s (%s test)", attr(sm, "compare"), attr(sm, "at"), attr(sm, "test"))),
-                html_table(tb$simple[[nm]]),
-                p(class = "text-muted", "Means with the same letter (within a column) are not significantly different."))
+        result_card(sprintf("Comparison of %s at each level of %s (%s test)", attr(sm, "compare"), attr(sm, "at"), attr(sm, "test")),
+                    html_table(tb$simple[[nm]]),
+                    p(class = "text-muted small mb-0", "Means with the same letter (within a column) are not significantly different."))
       }),
-      h4("APA-style report"), actionButton("cp_apa", "Copy"), div(class = "well well-sm", lapply(r$apa, p))
+      result_card("APA-style report", lapply(r$apa, p), copy = "cp_apa")
     )
   })
 
@@ -636,14 +693,21 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
 
   output$corr_results_ui <- renderUI({
     r <- corr_ok(); tb <- corr_tables()
+    best <- r$pairs[which.max(abs(r$pairs$r)), ]
     tagList(
       notes_ui(r$data_notes),
       div(class = if (any(r$pairs$Significant)) "alert alert-success" else "alert alert-info", r$summary),
-      h4("Correlation matrix"), actionButton("cp_corr_matrix", "Copy table"), html_table(tb$matrix),
-      p(class = "text-muted", sprintf("%s coefficient. * p < %s, ** p < 0.01, *** p < 0.001%s.", r$method_name, format(r$alpha),
-                                     if (r$adjust != "none") paste0(" (", r$adjust, "-adjusted)") else "")),
-      h4("All pairs"), actionButton("cp_corr_pairs", "Copy table"), html_table(tb$pairs),
-      h4("APA-style report"), actionButton("cp_corr_apa", "Copy"), div(class = "well well-sm", lapply(r$apa, p)))
+      key_stats(
+        stat("Significant pairs", sprintf("%d of %d", sum(r$pairs$Significant), nrow(r$pairs)), paste("alpha =", format(r$alpha))),
+        stat("Strongest pair", sprintf("%s = %.3f", r$symbol, best$r), paste(best$Variable1, "and", best$Variable2)),
+        stat("Method", r$method_name, if (r$adjust != "none") paste(r$adjust, "adjusted p values")),
+        stat("Observations per pair", if (min(r$pairs$N) == max(r$pairs$N)) min(r$pairs$N) else paste(min(r$pairs$N), "to", max(r$pairs$N)))),
+      result_card("Correlation matrix", html_table(tb$matrix),
+        p(class = "text-muted small mb-0", sprintf("%s coefficient. * p < %s, ** p < 0.01, *** p < 0.001%s.", r$method_name, format(r$alpha),
+                                                  if (r$adjust != "none") paste0(" (", r$adjust, "-adjusted)") else "")),
+        copy = "cp_corr_matrix", copy_label = "Copy table"),
+      result_card("All pairs", html_table(tb$pairs), copy = "cp_corr_pairs", copy_label = "Copy table"),
+      result_card("APA-style report", lapply(r$apa, p), copy = "cp_corr_apa"))
   })
   output$corr_view_picker <- renderUI({
     v <- corr_ok()$vars
@@ -710,13 +774,18 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
     tagList(
       notes_ui(r$data_notes),
       div(class = if (r$significant) "alert alert-success" else "alert alert-info", r$summary),
-      h4("Fitted model"), div(class = "well well-sm", style = "font-family: monospace;", r$equation),
-      h4("Model fit"), html_table(tb$fit),
-      h4("Analysis of variance"), actionButton("cp_reg_anova", "Copy table"), html_table(tb$anova),
-      h4("Parameter estimates"), actionButton("cp_reg_coef", "Copy table"), html_table(tb$coef),
-      if (!is.null(r$optimum)) p(class = "text-muted", sprintf("Stationary point of the curve: %s = %s, fitted %s = %s (a %s%s).", r$predictors, fmt_sig(r$optimum$x), r$response,
-                                                           fmt_sig(r$optimum$y), r$optimum$type, if (r$optimum$inside) "" else "; outside the range of the data")),
-      h4("APA-style report"), actionButton("cp_reg_apa", "Copy"), div(class = "well well-sm", r$apa))
+      key_stats(
+        stat("R-squared", sprintf("%.3f", r$fit$r2), sprintf("adjusted %.3f", r$fit$adj_r2)),
+        stat("Model p value", fmt_p(r$p_model), sprintf("F(%d, %d) = %.2f", r$fit$df1, r$fit$df2, r$fit$f)),
+        stat("RMSE", fmt_sig(r$fit$rmse), sprintf("CV = %.1f%%", r$fit$cv)),
+        stat("Observations", r$fit$n)),
+      result_card("Fitted model", div(class = "equation", r$equation),
+        if (!is.null(r$optimum)) p(class = "text-muted small mb-0", sprintf("Stationary point of the curve: %s = %s, fitted %s = %s (a %s%s).", r$predictors, fmt_sig(r$optimum$x), r$response,
+                                                                      fmt_sig(r$optimum$y), r$optimum$type, if (r$optimum$inside) "" else "; outside the range of the data"))),
+      result_card("Model fit", html_table(tb$fit)),
+      result_card("Analysis of variance", html_table(tb$anova), copy = "cp_reg_anova", copy_label = "Copy table"),
+      result_card("Parameter estimates", html_table(tb$coef), copy = "cp_reg_coef", copy_label = "Copy table"),
+      result_card("APA-style report", p(r$apa), copy = "cp_reg_apa"))
   })
   gg_reg <- reactive(do.call(star_ggplot_regression, c(list(reg_ok(), main = input$reg_title, xlab = input$reg_xlab, ylab = input$reg_ylab), plot_style("reg"))))
   output$reg_plot <- renderPlot(print(gg_reg()))

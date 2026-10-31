@@ -1,5 +1,5 @@
-# Results in other forms: a summary in Thai, R code that reproduces an analysis outside the app, and a report that
-# opens in Microsoft Word. Sourced by app.R (needs fmt_n, fmt_p, transforms, is_split, is_comb, precision_of).
+# Results in other forms: a summary in Thai and a report that opens in Microsoft Word.
+# Sourced by app.R (needs fmt_n, fmt_p, transforms, is_comb).
 
 # ---- summary in Thai ---------------------------------------------------------------------------------------------
 th_p <- function(p) if (is.na(p)) "p = NA" else if (p < 0.0001) "p < 0.0001" else paste("p =", formatC(p, format = "f", digits = 4))
@@ -60,96 +60,6 @@ thai_summary_tt <- function(r) {
                   if (sig) "แตกต่างอย่างมีนัยสำคัญทางสถิติ" else "ไม่แตกต่างอย่างมีนัยสำคัญทางสถิติ", format(r$mu), st, ci))
   size <- c(negligible = "น้อยมาก", small = "เล็ก", medium = "ปานกลาง", large = "ใหญ่")[[.star_tt_effect_word(r$effect_size)]]
   paste0(main, sprintf(" ขนาดอิทธิพล Cohen's d = %.2f (%s)", r$effect_size, size))
-}
-
-# ---- R code that reproduces an analysis -------------------------------------------------------------------------
-rq <- function(x) if (identical(make.names(x), x)) x else paste0("`", x, "`")      # name in a formula
-rd <- function(x) paste0("d$", rq(x))                                              # column of d
-r_num <- function(x) format(x, digits = 10, scientific = FALSE, trim = TRUE)
-r_test_fun <- c(LSD = "LSD.test", HSD = "HSD.test", duncan = "duncan.test", SNK = "SNK.test", scheffe = "scheffe.test", bonferroni = "LSD.test")
-r_test_call <- function(test, y, tr, df, ms, alpha) {
-  extra <- if (identical(test, "bonferroni")) ', p.adj = "bonferroni"' else ""
-  sprintf("%s(%s, %s, DFerror = %s, MSerror = %s, alpha = %s%s)$groups", r_test_fun[[test]], y, tr, r_num(df), r_num(ms), alpha, extra)
-}
-
-r_code_aov <- function(r, file_name = NULL) {
-  y <- r$response; y0 <- r$original_response %||% y
-  fs <- r$factors; blk <- r$block
-  head <- c(sprintf("# R code that reproduces this analysis (%s %s). It uses base R and the agricolae package.", app_name, version_label()),
-            "# install.packages(\"agricolae\")   # once",
-            "library(agricolae)",
-            sprintf("d <- %s", if (!is.null(file_name) && grepl("[.]xlsx$", file_name, ignore.case = TRUE)) sprintf("as.data.frame(readxl::read_excel(\"%s\"))", file_name)
-                               else sprintf("read.csv(\"%s\")", file_name %||% "your_data.csv")),
-            sprintf("%s <- factor(%s)", rd(c(fs, blk)), rd(c(fs, blk))))
-  if (!is.null(r$transform)) {
-    expr <- switch(r$transform, log = sprintf("log(%s + 1)", rd(y0)), sqrt = sprintf("sqrt(%s + 0.5)", rd(y0)),
-                   arcsin = sprintf("asin(sqrt(%s / 100)) * 180 / pi   # degrees", rd(y0)))
-    head <- c(head, sprintf("%s <- %s", rd(y), expr))
-  }
-  q <- rq
-  rhs <- switch(r$design,
-    CRD = paste(q(fs), collapse = " * "),
-    RCBD = paste(q(blk), "+", paste(q(fs), collapse = " * ")),
-    SplitRCBD = sprintf("%s + %s * %s + Error(%s:%s)", q(blk), q(r$main), q(r$sub), q(blk), q(r$main)),
-    SplitCRD = sprintf("%s * %s + Error(%s:%s)", q(r$main), q(r$sub), q(blk), q(r$main)),
-    CombRCBD = sprintf("%s + %s:%s + %s + %s:%s", q(r$env), q(r$env), q(blk), q(r$treatment), q(r$treatment), q(r$env)),
-    CombCRD = sprintf("%s + %s + %s:%s", q(r$env), q(r$treatment), q(r$treatment), q(r$env)))
-  fit <- c(sprintf("fit <- aov(%s ~ %s, data = d)%s", q(y), rhs, if (is_split(r$design) && !is.null(blk) && identical(r$design, "SplitRCBD")) "   # R warns that the Error() model is singular: expected here" else ""), "summary(fit)")
-  if (r$design %in% c("CRD", "RCBD")) fit <- c(fit, "cv.model(fit)                       # CV (%)", "shapiro.test(residuals(fit))        # normality of the residuals")
-  if (identical(r$design, "CombRCBD")) {
-    a <- r$anova
-    fit <- c(fit, sprintf("# %s is tested against %s within %s: F = MS(%s) / MS(%s:%s) = %s / %s", r$env, blk, r$env, r$env, r$env, blk,
-                          r_num(a$MS[1]), r_num(a$MS[2])),
-             sprintf("pf(%s / %s, %d, %d, lower.tail = FALSE)", r_num(a$MS[1]), r_num(a$MS[2]), a$DF[1], a$DF[2]))
-  }
-  cmp <- "# mean comparison (error df and mean square from the ANOVA table above)"
-  if (isTRUE(r$interaction_significant) && length(r$simple)) {
-    for (nm in names(r$simple)) {
-      sm <- r$simple[[nm]]; cf <- attr(sm, "compare"); af <- attr(sm, "at")
-      # simple effects use the pooled error; in a split plot the sub plot within a main plot uses Error(b)
-      e <- if (!is_split(r$design)) r$anova[r$anova$Source == "Error", ] else if (identical(cf, r$sub)) error_of(r, r$sub)
-      if (is.null(e)) {
-        cmp <- c(cmp, sprintf("# %s: %s is compared with the pooled error of Error(a) and Error(b) (Satterthwaite df), see the app's report", nm, cf))
-        next
-      }
-      cmp <- c(cmp, sprintf("# %s", nm),
-               sprintf("for (lv in levels(%s)) { cat(\"%s =\", lv, \"\\n\"); i <- %s == lv; print(%s) }", rd(af), af, rd(af),
-                       r_test_call(attr(sm, "test"), paste0(rd(y), "[i]"), paste0("droplevels(", rd(cf), "[i])"), e$DF, e$MS, r$alpha)))
-    }
-  } else {
-    for (f in fs) {
-      e <- error_of(r, f)
-      cmp <- c(cmp, if (isTRUE(r$effects$Significant[r$effects$Effect == f])) r_test_call(r$tests_used[[f]], rd(y), rd(f), e$DF, e$MS, r$alpha)
-                    else sprintf("# %s: F test not significant, so its means are not compared", f))
-    }
-  }
-  if (r$design %in% c("CRD", "RCBD") && length(fs) == 1) {
-    cmp <- c(cmp, "# rank-based alternative",
-             if (is.null(blk)) sprintf("kruskal(%s, %s, alpha = %s)$groups", rd(y), rd(fs), r$alpha)
-             else sprintf("friedman(%s, %s, %s, alpha = %s)$groups", rd(blk), rd(fs), rd(y), r$alpha))
-  }
-  paste(c(head, "", fit, "", cmp), collapse = "\n")
-}
-
-r_code_tt <- function(r, file_name = NULL) {
-  alt <- if (r$alternative != "two.sided") sprintf(", alternative = \"%s\"", r$alternative) else ""
-  conf <- sprintf(", conf.level = %s", r$conf_level)
-  read <- sprintf("d <- %s", if (!is.null(file_name) && grepl("[.]xlsx$", file_name, ignore.case = TRUE)) sprintf("as.data.frame(readxl::read_excel(\"%s\"))", file_name)
-                             else sprintf("read.csv(\"%s\")", file_name %||% "your_data.csv"))
-  body <- switch(r$type,
-    independent = c(sprintf("a <- %s[%s == \"%s\"]", rd(r$response), rd(r$group), r$labels[1]),
-                    sprintf("b <- %s[%s == \"%s\"]", rd(r$response), rd(r$group), r$labels[2]),
-                    sprintf("t.test(a, b, var.equal = %s%s%s)", if (r$var_equal) "TRUE" else "FALSE", alt, conf),
-                    "var.test(a, b)                       # F test for equal variances",
-                    "shapiro.test(a); shapiro.test(b)     # normality of each group",
-                    sprintf("wilcox.test(a, b, conf.int = TRUE%s%s)   # rank-based alternative", alt, conf)),
-    paired = c(sprintf("t.test(%s, %s, paired = TRUE%s%s)", rd(r$x), rd(r$y), alt, conf),
-               sprintf("shapiro.test(%s - %s)", rd(r$x), rd(r$y)),
-               sprintf("wilcox.test(%s, %s, paired = TRUE, conf.int = TRUE%s%s)   # rank-based alternative", rd(r$x), rd(r$y), alt, conf)),
-    one = c(sprintf("t.test(%s, mu = %s%s%s)", rd(r$response), format(r$mu), alt, conf),
-            sprintf("shapiro.test(%s)", rd(r$response)),
-            sprintf("wilcox.test(%s, mu = %s, conf.int = TRUE%s%s)   # rank-based alternative", rd(r$response), format(r$mu), alt, conf)))
-  paste(c(sprintf("# R code that reproduces this t-test (%s %s), base R only.", app_name, version_label()), read, "", body), collapse = "\n")
 }
 
 # ---- report for Microsoft Word ------------------------------------------------------------------------------------

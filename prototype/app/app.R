@@ -16,10 +16,6 @@ app_name <- "RDstat"
 app_maintainer <- "Kanthanawit Jaisong"
 # short explanation folded away until wanted (for users who are not statisticians)
 help_box <- function(title, ...) tags$details(class = "help-box", tags$summary(title), div(class = "help-body", ...))
-# R code that reproduces the analysis outside the app (built in report.R)
-rcode_ui <- function(id, copy) stale_dim(div(
-  p(class = "text-muted", "The same analysis as plain R code (base R and the agricolae package), so that it can be checked, rerun or kept with the data. Save your data file in the same folder as the script, or change the file name in the second line."),
-  actionButton(copy, tagList(icon("copy"), " Copy R code"), class = "btn-sm mb-2"), verbatimTextOutput(id)))
 # version of this build (written by scripts/build_app.R); shown in the About tab and written to every result file
 app_version <- local({
   v <- if (file.exists("VERSION")) readLines("VERSION") else character()
@@ -478,8 +474,7 @@ tt_ui <- sidebarLayout(
     div(id = "tt_out", tabsetPanel(
       tabPanel("Results", br(), stale_dim(uiOutput("tt_results_ui")), br(), stale_dim(conditionalPanel("input.go_tt > 0", downloadButton("dl_tt_xlsx", "Download Excel (.xlsx)"), downloadButton("dl_tt_doc", "Download report (Word)")))),
       tabPanel("Data", br(), uiOutput("tt_data_ui")),
-      tabPanel("Plot", br(), plot_labels_ui("tt"), plot_style_ui("tt"), stale_dim(plotOutput("tt_plot", height = "440px")), plot_export_ui("tt")),
-      tabPanel("R code", br(), rcode_ui("tt_rcode", "cp_tt_rcode"))))))
+      tabPanel("Plot", br(), plot_labels_ui("tt"), plot_style_ui("tt"), stale_dim(plotOutput("tt_plot", height = "440px")), plot_export_ui("tt"))))))
 
 # t-test tables; numbers below 1 get more decimals
 tt_digits <- function(r) if (max(abs(r$groups$Mean), na.rm = TRUE) < 1) 4 else 2
@@ -579,7 +574,7 @@ home_ui <- div(class = "container", style = "max-width: 1040px;",
       span("ข้อมูลของคุณถูกวิเคราะห์ในเบราว์เซอร์ของคุณเท่านั้น ไม่ได้ถูกส่งไปยังเซิร์ฟเวอร์ใด")))
 
 source("methods.R", local = TRUE)   # methods_sections, method_refs
-source("report.R", local = TRUE)    # Thai summaries, R code, Word report
+source("report.R", local = TRUE)    # Thai summaries, Word report
 
 methods_ui <- div(class = "container", style = "max-width: 800px;",
   h3("วิธีการและซอฟต์แวร์"),
@@ -764,8 +759,7 @@ ui <- bslib::page_navbar(
                  stale_dim(uiOutput("diag_ui")), stale_dim(plotOutput("diag_plot", height = "380px"))),
         tabPanel("Classic STAR report", br(),
                  stale_dim(div(actionButton("cp_report", "Copy report"), downloadButton("dl_txt", "Download TXT"),
-                 verbatimTextOutput("report")))),
-        tabPanel("R code", br(), rcode_ui("aov_rcode", "cp_aov_rcode"))
+                 verbatimTextOutput("report"))))
       ))
     )
   )),
@@ -1151,12 +1145,8 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
   })
   output$dl_txt <- downloadHandler("rdstat_anova_report.txt", function(file) writeLines(c(paste(app_name, "web app", version_label()), "", report_text()), file))
 
-  # ---- Thai summary, R code and Word report ----
+  # ---- Thai summary and Word report ----
   aov_file_name <- reactive(if (input$src == "up") input$file$name else setup()$file)
-  aov_rcode <- reactive(paste0(r_code_aov(ok(), aov_file_name()),
-                               if (isTRUE(to_long())) "\n\n# Note: the uploaded file was in wide format and was converted to long format in the app;\n# the code expects the long layout (one row per plot), as shown in the Data tab." else ""))
-  output$aov_rcode <- renderText(aov_rcode())
-  observeEvent(input$cp_aov_rcode, session$sendCustomMessage("copy_text", list(what = "R code", text = aov_rcode())))
   observeEvent(input$cp_aov_th, session$sendCustomMessage("copy_text", list(what = "สรุปผล", text = thai_summary_aov(ok(), np_res()))))
   design_names <- c(CRD = "Completely randomized design (CRD)", RCBD = "Randomized complete block design (RCBD)",
                     SplitCRD = "Split plot in CRD", SplitRCBD = "Split plot in RCBD",
@@ -1311,8 +1301,6 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
   output$tt_plot <- renderPlot(print(gg_tt()))
   output$dl_tt_plot <- plot_download("tt", gg_tt)
   tt_file_name <- reactive(if (input$tt_src == "up") input$tt_file$name else tt_setup[[input$tt_example]]$file)
-  output$tt_rcode <- renderText(r_code_tt(tt_ok(), tt_file_name()))
-  copy_button("cp_tt_rcode", "R code", function() r_code_tt(tt_ok(), tt_file_name()))
   copy_button("cp_tt_th", "สรุปผล", function() thai_summary_tt(tt_ok()))
   output$dl_tt_doc <- downloadHandler("rdstat_ttest_report.doc", function(file) {
     r <- tt_ok(); tb <- tt_tables()

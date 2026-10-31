@@ -107,16 +107,10 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   run(pw = "LSD")
   check(identical(ok()$anova$DF, c(2, 3, 6, 36, 47)), "Combined CRD: ANOVA df")
 
-  # ---- Thai summary, R code that reproduces the analysis, Word report ----
-  run_code <- function() { e <- new.env(); utils::capture.output(eval(parse(text = aov_rcode()), envir = e)); e }
-  all_f <- function(fit) { s <- summary(fit); if (inherits(s, "summary.aovlist")) s <- lapply(s, `[[`, 1); f <- unname(unlist(lapply(s, function(t) t[["F value"]]))); sort(round(f[!is.na(f)], 4)) }
+  # ---- Thai summary and Word report ----
   session$setInputs(design = "SplitRCBD", example = "split1", resp = "Yield", trt_main = "Nitrogen", trt_sub = "Variety", blk = "Rep"); run(pw = "auto")
-  check(identical(all_f(run_code()$fit), sort(round(ok()$anova$F[!is.na(ok()$anova$F)], 4))), "R code: reproduces the split-plot ANOVA")
   check(grepl("ปฏิสัมพันธ์ระหว่าง Nitrogen และ Variety มีนัยสำคัญ", html(output$results_ui)), "Thai summary: significant interaction")
-  session$setInputs(design = "CombRCBD", example = "comb_rcbd1", resp = "GrainYield", trt = "NitrogenRate", env = "Season", blk = "Rep"); run(pw = "LSD")
-  f <- summary(run_code()$fit)[[1]]; check(isTRUE(all.equal(f[["F value"]][trimws(rownames(f)) == "NitrogenRate"], ok()$anova$F[3])), "R code: reproduces the combined ANOVA")
   session$setInputs(design = "RCBD", example = "rcbd2", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep", transform = "sqrt"); run(pw = "auto")
-  check(identical(all_f(run_code()$fit), sort(round(ok()$anova$F[!is.na(ok()$anova$F)], 4))), "R code: reproduces a transformed two-factor RCBD")
   session$setInputs(transform = "none"); run(pw = "auto")
   doc <- output$dl_doc; txt <- readLines(doc, warn = FALSE)
   check(any(grepl("multipart/related", txt)) && any(grepl("image/png", txt)) && file.size(doc) > 20000, "Word report: single-file page with tables and the plot")
@@ -189,8 +183,6 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   check(isTRUE(all.equal(r$test$t, unname(ref$statistic))) && isTRUE(all.equal(c(r$test$Lower, r$test$Upper), ref$conf.int[1:2] - 3)), "t-test: one sample matches t.test, CI of the difference")
   check(file.size(output$dl_tt_plot) > 3000, "t-test: one-sample plot png")
   x <- output$dl_tt_xlsx; check(identical(readxl::excel_sheets(x), c("Descriptives", "t-test", "Wilcoxon", "Normality", "Info")), "t-test: xlsx sheets")
-  e <- new.env(); utils::capture.output(res_tt <- eval(parse(text = r_code_tt(tt_ok(), "example_rice.csv")), envir = e))
-  check(isTRUE(all.equal(unname(e$d$Yield), read.csv("example_rice.csv")$Yield)) && grepl("t.test(d$Yield, mu = 3", output$tt_rcode, fixed = TRUE), "t-test: R code")
   check(grepl("สรุปผล", html(output$tt_results_ui)) && file.size(output$dl_tt_doc) > 10000, "t-test: Thai summary and Word report")
   session$setInputs(tt_type = "paired", tt_x = "Yield", tt_y = "Yield", go_tt = 6); check(!isTRUE(tryCatch(is.list(tt_res()), error = function(e) FALSE)) || inherits(tt_res(), "star_error"), "t-test: same column twice is refused")
   session$setInputs(cp_tt_desc = 1, cp_tt_test = 1, cp_tt_apa = 1, home_tt = 1)

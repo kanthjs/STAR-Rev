@@ -7,7 +7,7 @@ th_f <- function(r, f) { e <- r$effects[r$effects$Effect == f, ]; sprintf("F = %
 th_test <- c(LSD = "LSD", HSD = "Tukey HSD", duncan = "Duncan (DMRT)", SNK = "SNK", scheffe = "Scheffe", bonferroni = "Bonferroni")
 th_best <- function(m) sprintf("%s (%s)", m$Treatment[which.max(m$Mean)], fmt_n(max(m$Mean)))
 
-thai_summary_aov <- function(r, np = NULL) {
+thai_summary_aov <- function(r) {
   y <- r$original_response %||% r$response
   fs <- r$factors
   out <- character()
@@ -38,12 +38,8 @@ thai_summary_aov <- function(r, np = NULL) {
     out <- c(out, if (r$bartlett$p >= r$alpha) sprintf("ความแปรปรวนของความคลาดเคลื่อนในแต่ละ %s ไม่แตกต่างกัน (Bartlett, %s) จึงรวมวิเคราะห์ได้", r$env, th_p(r$bartlett$p))
                   else sprintf("ความแปรปรวนของความคลาดเคลื่อนในแต่ละ %s แตกต่างกัน (Bartlett, %s) การรวมวิเคราะห์อาจไม่เหมาะสม ควรรายงานผลแยกแต่ละ %s หรือแปลงข้อมูล", r$env, th_p(r$bartlett$p), r$env))
   }
-  dg <- r$diagnostics
-  if (!is.null(dg) && !isTRUE(dg$ok)) {
-    out <- c(out, paste0("ข้อมูลไม่เป็นไปตามข้อตกลงเบื้องต้นของการวิเคราะห์ความแปรปรวนทั้งหมด (ดูแท็บ Outliers & assumptions)",
-                         if (!is.null(np)) sprintf(" การทดสอบแบบไม่อิงพารามิเตอร์ (%s) ให้ %s", np$name, th_p(np$p)) else ""))
-  }
-  paste0(paste(out, collapse = " "), "")
+  # the assumption checks are left to the analyst (Outliers & assumptions tab), not judged in the summary
+  paste(out, collapse = " ")
 }
 
 thai_summary_tt <- function(r) {

@@ -28,6 +28,7 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   run(pw = "HSD")
   check(is.null(ok()$block) && round(ok()$anova$F[1], 2) == 9.83, "CRD 1 factor: no block, F = 9.83")
   check(identical(tables()$means$Insecticide$Group, c("ab", "c", "a", "bc", "bc", "ab", "a")), "CRD 1 factor: letters match the original")
+  check(!grepl("assumptions are not met", html(output$results_ui)) && !grepl("ข้อตกลงเบื้องต้น", html(output$results_ui)), "Results tab: no verdict on the assumptions")
   check(round(np_res()$statistic, 2) == 20.85 && np_res()$name == "Kruskal-Wallis" && grepl("Rank-based alternative", html(output$diag_ui)), "CRD 1 factor: Kruskal-Wallis chi-square = 20.85 (kruskal.test)")
 
   # ---- CRD, two factors (tooth growth) ----

@@ -1040,16 +1040,12 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
     tagList(
       notes_ui(r$data_notes),
       div(class = if (r$significant || r$interaction_significant) "alert alert-success" else "alert alert-info", r$summary),
-      # the checks failed: point to the rank-based result so that it is not missed
-      if (!is.null(r$diagnostics) && !isTRUE(r$diagnostics$ok) && !is.null(np <- np_res()))
-        div(class = "alert alert-warning small", icon("triangle-exclamation"), " ",
-            strong("The ANOVA assumptions are not met"), " (see the Outliers & assumptions tab). Rank-based check: ", np$summary),
       key_stats(
         stat("Significant effects", sprintf("%d of %d", length(sig), nrow(r$effects)), if (length(sig)) paste(sig, collapse = ", ") else "none"),
         stat("Grand mean", fmt_n(r$grand_mean), r$original_response %||% r$response),
         stat("CV", if (is.null(r$cv_a)) sprintf("%.1f%%", r$cv) else sprintf("%.1f%% / %.1f%%", r$cv_a, r$cv_b), if (!is.null(r$cv_a)) "Error (a) / Error (b)"),
         top_stat),
-      result_card("สรุปผล (ภาษาไทย)", p(lang = "th", thai_summary_aov(r, np_res())), copy = "cp_aov_th", copy_label = "คัดลอก"),
+      result_card("สรุปผล (ภาษาไทย)", p(lang = "th", thai_summary_aov(r)), copy = "cp_aov_th", copy_label = "คัดลอก"),
       result_card("Analysis of variance", html_table(tb$anova), copy = "cp_anova", copy_label = "Copy table",
                   if (is_comb(r$design)) p(class = "text-muted small mb-0", sprintf("Environments are fixed effects, as in STAR: %s is tested against %s; the other effects against the pooled error.",
                                                                                   r$env, if (identical(r$design, "CombRCBD")) paste(r$block, "within", r$env) else "the pooled error"))),
@@ -1147,7 +1143,7 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
 
   # ---- Thai summary and Word report ----
   aov_file_name <- reactive(if (input$src == "up") input$file$name else setup()$file)
-  observeEvent(input$cp_aov_th, session$sendCustomMessage("copy_text", list(what = "สรุปผล", text = thai_summary_aov(ok(), np_res()))))
+  observeEvent(input$cp_aov_th, session$sendCustomMessage("copy_text", list(what = "สรุปผล", text = thai_summary_aov(ok()))))
   design_names <- c(CRD = "Completely randomized design (CRD)", RCBD = "Randomized complete block design (RCBD)",
                     SplitCRD = "Split plot in CRD", SplitRCBD = "Split plot in RCBD",
                     CombRCBD = "Combined analysis over environments (RCBD)", CombCRD = "Combined analysis over environments (CRD)")
@@ -1159,7 +1155,7 @@ observeEvent(input$cp_mrefs, session$sendCustomMessage("copy_text", list(what = 
                                  if (is.null(r$transform)) "none" else transforms[[r$transform]]$label, paste(unique(r$tests_used), collapse = ", "),
                                  r$alpha, aov_file_name() %||% "-", format(Sys.Date()), paste(app_name, version_label())), stringsAsFactors = FALSE)
     blocks <- c(word_table(info),
-      w_h2("สรุปผล"), w_p(thai_summary_aov(r, np)), w_p(r$summary),
+      w_h2("สรุปผล"), w_p(thai_summary_aov(r)), w_p(r$summary),
       w_h2("Analysis of variance"), word_table(tb$anova),
       if (is_comb(r$design)) c(w_h2(paste("Analysis of each", r$env)), word_table(by_env_display(r)), w_p(.star_bartlett_text(r$bartlett, r$alpha), "small")),
       w_h2("Means"), unlist(lapply(names(tb$agronomy), function(f) c(w_p(paste("Means of", f)), word_table(tb$agronomy[[f]])))),

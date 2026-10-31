@@ -216,8 +216,11 @@ star_report <- function(x) {
   if (is.null(x$data)) {
     return(character())
   }
-  if (identical(x$design, "SplitRCBD")) {
-    return(.star_split_report(x$data, x$response, x$main, x$sub, x$block, x$test, x$alpha))
+  if (x$design %in% c("CombRCBD", "CombCRD")) {
+    return(.star_combined_report(x$data, x$response, x$treatment, x$env, x$block, sub("^Comb", "", x$design), x$test, x$alpha))
+  }
+  if (x$design %in% c("SplitRCBD", "SplitCRD")) {
+    return(.star_split_report(x$data, x$response, x$main, x$sub, x$block, x$test, x$alpha, x$design))
   }
   .star_aov_report(x$data, x$response, x$factors, x$block, x$design, x$test, x$alpha)
 }

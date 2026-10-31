@@ -28,6 +28,7 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   run(pw = "HSD")
   check(is.null(ok()$block) && round(ok()$anova$F[1], 2) == 9.83, "CRD 1 factor: no block, F = 9.83")
   check(identical(tables()$means$Insecticide$Group, c("ab", "c", "a", "bc", "bc", "ab", "a")), "CRD 1 factor: letters match the original")
+  check(round(np_res()$statistic, 2) == 20.85 && np_res()$name == "Kruskal-Wallis" && grepl("Rank-based alternative", html(output$diag_ui)), "CRD 1 factor: Kruskal-Wallis chi-square = 20.85 (kruskal.test)")
 
   # ---- CRD, two factors (tooth growth) ----
   session$setInputs(design = "CRD", example = "crd2", resp = "len", trt = c("supp", "dose"))
@@ -64,10 +65,68 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   check(identical(ok(), r), "Split plot: same settings give the same (cached) result")
   session$setInputs(plot_effect = "interaction"); p0 <- output$dl_aov_plot; check(file.size(p0) > 5000, "Split plot: interaction png")
 
+  # ---- split plot in CRD (irrigation main plot x variety sub plot, simulated example) ----
+  session$setInputs(design = "SplitCRD", example = "splitcrd1", resp = "Yield", trt_main = "Irrigation", trt_sub = "Variety", blk = "Rep")
+  run(pw = "LSD")
+  r <- ok()
+  check(identical(r$anova$Source, c("Irrigation", "Error(a)", "Variety", "Irrigation:Variety", "Error(b)", "Total")), "Split plot CRD: ANOVA rows (no block)")
+  check(identical(r$anova$DF, c(2, 9, 3, 6, 27, 47)), "Split plot CRD: DF a(r-1) = 9 and a(r-1)(b-1) = 27")
+  check(round(r$anova$F[1], 2) == 29.80 && round(r$cv_a, 2) == 7.56 && round(r$cv_b, 2) == 5.15, "Split plot CRD: F = 29.80, CV(a) = 7.56, CV(b) = 5.15 (original STAR)")
+  check(identical(tables()$means$Irrigation$Group, c("b", "a", "c")) && identical(tables()$means$Variety$Group, c("d", "c", "b", "a")), "Split plot CRD: letters match the original STAR")
+  check(grepl("Split Plot in Completely Randomized Design", output$report), "Split plot CRD: classic STAR report")
+  check(grepl("not available for split-plot", html(output$diag_ui)), "Split plot CRD: no assumption checks yet")
+  check(identical(tables()$agronomy$Irrigation[[1]][4:9], c("F test (Irrigation)", "Grand mean", "CV (%)", "SE(m)", "SED", "LSD (0.05)")),
+        "Split plot CRD: publication footer rows")
+  pr <- precision_of(r, "Irrigation"); ea <- r$anova[r$anova$Source == "Error(a)", ]
+  check(isTRUE(all.equal(pr[["sed"]], sqrt(2 * ea$MS / 16))) && pr[["df"]] == 9, "Split plot CRD: SED of the main plot uses Error(a)")
+
+  # ---- publication layout and transformation ----
+  session$setInputs(design = "RCBD", example = "rcbd1", resp = "Yield", trt = "Nitrogen", blk = "Rep", transform = "none"); run(pw = "LSD")
+  lsd_ag <- agricolae::LSD.test(ok()$data$Yield, ok()$data$Nitrogen, ok()$anova$DF[ok()$anova$Source == "Error"], ok()$anova$MS[ok()$anova$Source == "Error"], console = FALSE)$statistics$LSD
+  check(identical(tables()$agronomy$Nitrogen$Mean[nrow(tables()$agronomy$Nitrogen)], fmt_n(lsd_ag)), "Publication table: LSD equals agricolae's LSD")
+  check(grepl("8.54**", tables()$agronomy$Nitrogen$Mean[7], fixed = TRUE), "Publication table: F with ** for p < 0.01")
+  run(transform = "log")
+  check(identical(ok()$response, "Yield_log") && identical(ok()$transform, "log"), "Transformation: analysis of log(y + 1)")
+  check(isTRUE(all.equal(exp(ok()$means$Nitrogen$Mean) - 1, star_parse_number(tables()$means$Nitrogen$`Mean (original unit)`), tolerance = 1e-3)), "Transformation: back-transformed means")
+  session$setInputs(plot_style = "gg", gg_points = TRUE, gg_error = "se"); check(inherits(gg_means(), "ggplot"), "Transformation: plot with observations"); session$setInputs(plot_style = "classic")
+  run(transform = "arcsin"); check(inherits(res(), "star_error") && grepl("between 0 and 100", res()$message), "Transformation: arcsine refuses values above 100")
+  session$setInputs(transform = "none")
+
+  # ---- combined analysis over environments (Gomez & Gomez two seasons; values from STAR's combAOVTest) ----
+  session$setInputs(design = "CombRCBD", example = "comb_rcbd1", resp = "GrainYield", trt = "NitrogenRate", env = "Season", blk = "Rep")
+  run(pw = "LSD")
+  r <- ok()
+  check(identical(r$anova$Source, c("Season", "Rep within Season", "NitrogenRate", "NitrogenRate:Season", "Error", "Total")), "Combined RCBD: ANOVA rows")
+  check(identical(round(r$anova$F[1:4], 2), c(14.25, 0.71, 10.62, 5.47)) && round(r$cv, 2) == 12.05, "Combined RCBD: F and CV match STAR")
+  ui <- html(output$results_ui)
+  check(grepl("Analysis of each Season", ui) && grepl("Bartlett", ui), "Combined RCBD: each environment and Bartlett's test")
+  check(grepl("Combined Analysis of Variance", output$report), "Combined RCBD: classic STAR report")
+  check("Each environment" %in% readxl::excel_sheets(output$dl_xlsx), "Combined RCBD: Excel sheet for each environment")
+  check(!is.null(r$diagnostics), "Combined RCBD: assumption checks")
+  session$setInputs(design = "CombCRD", example = "comb_crd1", resp = "Tillers", trt = "Variety", env = "Site")
+  run(pw = "LSD")
+  check(identical(ok()$anova$DF, c(2, 3, 6, 36, 47)), "Combined CRD: ANOVA df")
+
+  # ---- Thai summary, R code that reproduces the analysis, Word report ----
+  run_code <- function() { e <- new.env(); utils::capture.output(eval(parse(text = aov_rcode()), envir = e)); e }
+  all_f <- function(fit) { s <- summary(fit); if (inherits(s, "summary.aovlist")) s <- lapply(s, `[[`, 1); f <- unname(unlist(lapply(s, function(t) t[["F value"]]))); sort(round(f[!is.na(f)], 4)) }
+  session$setInputs(design = "SplitRCBD", example = "split1", resp = "Yield", trt_main = "Nitrogen", trt_sub = "Variety", blk = "Rep"); run(pw = "auto")
+  check(identical(all_f(run_code()$fit), sort(round(ok()$anova$F[!is.na(ok()$anova$F)], 4))), "R code: reproduces the split-plot ANOVA")
+  check(grepl("ปฏิสัมพันธ์ระหว่าง Nitrogen และ Variety มีนัยสำคัญ", html(output$results_ui)), "Thai summary: significant interaction")
+  session$setInputs(design = "CombRCBD", example = "comb_rcbd1", resp = "GrainYield", trt = "NitrogenRate", env = "Season", blk = "Rep"); run(pw = "LSD")
+  f <- summary(run_code()$fit)[[1]]; check(isTRUE(all.equal(f[["F value"]][trimws(rownames(f)) == "NitrogenRate"], ok()$anova$F[3])), "R code: reproduces the combined ANOVA")
+  session$setInputs(design = "RCBD", example = "rcbd2", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep", transform = "sqrt"); run(pw = "auto")
+  check(identical(all_f(run_code()$fit), sort(round(ok()$anova$F[!is.na(ok()$anova$F)], 4))), "R code: reproduces a transformed two-factor RCBD")
+  session$setInputs(transform = "none"); run(pw = "auto")
+  doc <- output$dl_doc; txt <- readLines(doc, warn = FALSE)
+  check(any(grepl("multipart/related", txt)) && any(grepl("image/png", txt)) && file.size(doc) > 20000, "Word report: single-file page with tables and the plot")
+  html_part <- rawToChar(jsonlite::base64_dec(paste(txt[(which(grepl("report.htm", txt))[1] + 2):(which(grepl("^------=_NextPart_RDstat$", txt))[2] - 2)], collapse = ""))); Encoding(html_part) <- "UTF-8"
+  check(grepl("Analysis of variance", html_part) && grepl("สรุปผล", html_part) && grepl("LSD (0.05)", html_part, fixed = TRUE), "Word report: ANOVA, Thai summary and the publication table")
+
   # ---- downloads and copy (two-factor result is selected) ----
   session$setInputs(design = "RCBD", example = "rcbd2", resp = "Yield", trt = c("Nitrogen", "Variety"), blk = "Rep"); run(pw = "auto")
   x <- output$dl_xlsx; check(file.exists(x) && file.size(x) > 3000, "xlsx download created")
-  sh <- readxl::excel_sheets(x); check(identical(sh, c("ANOVA", "Means", "Cell means", "Simple effects", "Info")), "xlsx sheets for a two-factor result")
+  sh <- readxl::excel_sheets(x); check(identical(sh, c("ANOVA", "Publication table", "Means", "Cell means", "Simple effects", "Info")), "xlsx sheets for a two-factor result")
   session$setInputs(plot_effect = "interaction"); p1 <- output$dl_aov_plot; check(file.exists(p1) && file.size(p1) > 5000, "png (interaction plot)")
   session$setInputs(plot_effect = "Nitrogen"); p2 <- output$dl_aov_plot; check(file.exists(p2) && file.size(p2) > 5000, "png (main effect plot)")
   t <- output$dl_txt; check(length(readLines(t)) > 40, "txt report download")
@@ -75,7 +134,7 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   cat("ok   copy buttons ran\n")
 
   session$setInputs(design = "CRD", example = "crd1", resp = "GrainYield", trt = "Insecticide"); run(pw = "LSD")
-  x1 <- output$dl_xlsx; check(identical(readxl::excel_sheets(x1), c("ANOVA", "Means", "Info")), "xlsx sheets for a one-factor result")
+  x1 <- output$dl_xlsx; check(identical(readxl::excel_sheets(x1), c("ANOVA", "Publication table", "Means", "Info")), "xlsx sheets for a one-factor result")
 
   # ---- errors are reported, not thrown ----
   run(pw = "LSD", resp = "GrainYield", trt = "GrainYield")
@@ -108,6 +167,35 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   check(!is.null(reg_ok()$optimum) && reg_ok()$optimum$inside, "Regression: quadratic finds an optimum inside the range")
   check(file.size(output$dl_reg_plot) > 3000, "Regression: curve png")
   session$setInputs(reg_newx = "50, 100, 400"); check(identical(reg_predictions()$Extrapolated, c(FALSE, FALSE, TRUE)), "Regression: predictions flag extrapolation")
+
+  # ---- t-test screen ----
+  check(grepl("No results yet", html(output$tt_msg)), "t-test: empty state before the first run")
+  session$setInputs(tt_src = "ex", tt_example = "tooth", tt_type = "independent", tt_resp = "len", tt_group = "supp", tt_levels = c("OJ", "VC"),
+                    tt_alt = "two.sided", tt_var = "welch", tt_alpha = "0.05", go_tt = 1)
+  r <- tt_ok()
+  check(round(r$test$t[2], 3) == 1.915 && round(r$test$DF[2], 2) == 55.31 && round(r$p, 4) == 0.0606 && !r$significant, "t-test: Welch t = 1.915, df = 55.31, p = 0.0606 (R t.test)")
+  check(identical(tt_tables()$test$Used, c("", "yes")) && round(r$test$DF[1]) == 58, "t-test: pooled and Welch rows, Welch used")
+  ui <- html(output$tt_results_ui); check(grepl("Difference in means", ui) && grepl("Cohen", ui) && grepl("F test", ui), "t-test: key numbers and variance test")
+  session$setInputs(tt_var = "equal", go_tt = 2); check(tt_ok()$chosen == 1 && round(tt_ok()$p, 4) == 0.0604, "t-test: pooled version when variances assumed equal")
+  session$setInputs(tt_example = "insect", tt_resp = "GrainYield", tt_group = "Insecticide", tt_levels = c("Dol-Mix (2kg)", "Control"), tt_var = "welch", go_tt = 3)
+  check(tt_ok()$significant && any(grepl("other 5 group", tt_ok()$data_notes)), "t-test: two of seven groups, the rest noted")
+  session$setInputs(tt_example = "sleep", tt_type = "paired", tt_x = "Drug1", tt_y = "Drug2", go_tt = 4)
+  r <- tt_ok(); check(round(r$test$t, 3) == -4.062 && r$test$DF == 9 && round(r$p, 4) == 0.0028, "t-test: paired t = -4.062, df = 9, p = 0.0028 (Student's sleep data)")
+  check(identical(tt_tables()$desc$Measurement, c("Drug1", "Drug2", "Drug1 - Drug2")), "t-test: paired descriptives include the differences")
+  check(isTRUE(all.equal(r$nonparametric$P, suppressWarnings(wilcox.test(read.csv("example_sleep.csv")$Drug1, read.csv("example_sleep.csv")$Drug2, paired = TRUE)$p.value))) && grepl("Rank-based", html(output$tt_results_ui)), "t-test: Wilcoxon signed-rank alternative (wilcox.test)")
+  check(file.size(output$dl_tt_plot) > 3000, "t-test: paired plot png")
+  session$setInputs(tt_example = "rice", tt_type = "one", tt_resp = "Yield", tt_mu = 3, go_tt = 5)
+  r <- tt_ok(); ref <- t.test(read.csv("example_rice.csv")$Yield, mu = 3)
+  check(isTRUE(all.equal(r$test$t, unname(ref$statistic))) && isTRUE(all.equal(c(r$test$Lower, r$test$Upper), ref$conf.int[1:2] - 3)), "t-test: one sample matches t.test, CI of the difference")
+  check(file.size(output$dl_tt_plot) > 3000, "t-test: one-sample plot png")
+  x <- output$dl_tt_xlsx; check(identical(readxl::excel_sheets(x), c("Descriptives", "t-test", "Wilcoxon", "Normality", "Info")), "t-test: xlsx sheets")
+  e <- new.env(); utils::capture.output(res_tt <- eval(parse(text = r_code_tt(tt_ok(), "example_rice.csv")), envir = e))
+  check(isTRUE(all.equal(unname(e$d$Yield), read.csv("example_rice.csv")$Yield)) && grepl("t.test(d$Yield, mu = 3", output$tt_rcode, fixed = TRUE), "t-test: R code")
+  check(grepl("สรุปผล", html(output$tt_results_ui)) && file.size(output$dl_tt_doc) > 10000, "t-test: Thai summary and Word report")
+  session$setInputs(tt_type = "paired", tt_x = "Yield", tt_y = "Yield", go_tt = 6); check(!isTRUE(tryCatch(is.list(tt_res()), error = function(e) FALSE)) || inherits(tt_res(), "star_error"), "t-test: same column twice is refused")
+  session$setInputs(cp_tt_desc = 1, cp_tt_test = 1, cp_tt_apa = 1, home_tt = 1)
+  cat("ok   t-test copy buttons ran
+")
 
   # ---- plot style and download size ----
   png_size <- function(f) { b <- readBin(f, "raw", 24); c(sum(as.integer(b[17:20]) * 256^(3:0)), sum(as.integer(b[21:24]) * 256^(3:0))) }
@@ -155,4 +243,47 @@ tests <- c(auto = "Tukeys", LSD = "Least Significant", HSD = "Tukeys", duncan = 
   session$setInputs(cp_mrefs = 1)
   check(length(method_refs) >= 20 && all(grepl("[0-9]{4}", method_refs)), "Method references are listed")
   check(any(grepl("Error(Block:A)", paste(as.character(methods_sections), collapse = ""), fixed = TRUE)), "Methods page describes the split-plot model")
+
+  # ---- missing letters are explained, and Excel agrees with the screen ----
+  session$setInputs(src = "ex", design = "CRD", example = "crd2", resp = "len", trt = c("supp", "dose")); run(pw = "auto")
+  check(grepl("No letters", html(output$results_ui)) && grepl("interaction is significant", html(output$results_ui)), "Letters: note explains why main-effect letters are missing")
+  m <- readxl::read_excel(output$dl_xlsx, "Means"); check(all(is.na(m$Group) | m$Group == ""), "Letters: Excel has no letters the screen does not show")
+  ns <- list(factors = "Variety", alpha = 0.05, interaction_significant = FALSE, effects = data.frame(Effect = "Variety", P = 0.2345, Significant = FALSE))
+  note <- paste(as.character(no_letters_note(ns, "Variety")), collapse = "")
+  check(grepl("not significant (p = 0.2345", note, fixed = TRUE) && grepl("protected test", note), "Letters: note for a non-significant F test gives the p value")
+
+  # ---- stale results are flagged with a Run again button ----
+  session$setInputs(alpha = "0.01")
+  check(aov_stale() && grepl("Run again", html(output$aov_msg)) && grepl("go_aov", html(output$aov_msg)), "Stale: changed settings give a Run again button")
+  run(); check(!aov_stale(), "Stale: running again clears the flag")
+  session$setInputs(alpha = "0.05")
+
+  # ---- wide-format files ----
+  w <- data.frame(Variety = c("A", "B", "C"), `Rep 1` = c(5, 6, 7), `Rep 2` = c(5.5, 6.2, 7.1), `Rep 3` = c(4.9, 6.4, 7.3), check.names = FALSE)
+  check(identical(wide_rep_cols(w), c("Rep 1", "Rep 2", "Rep 3")) && identical(wide_rep_cols(read.csv("example_rcbd.csv")), character()), "Wide: replication columns are recognised, long files are left alone")
+  check(identical(wide_rep_cols(setNames(w, c("พันธุ์", "ซ้ำที่ 1", "ซ้ำที่ 2", "ซ้ำที่ 3"))), c("ซ้ำที่ 1", "ซ้ำที่ 2", "ซ้ำที่ 3")), "Wide: Thai column names are recognised")
+  lg <- wide_to_long(w, wide_rep_cols(w))
+  check(identical(names(lg), c("Variety", "Rep", "Value")) && nrow(lg) == 9 && identical(lg$Rep, rep(c("1", "2", "3"), each = 3)) && lg$Value[5] == 6.2, "Wide: converted to one row per plot")
+  f <- tempfile(fileext = ".csv"); write.csv(w, f, row.names = FALSE)
+  session$setInputs(design = "RCBD", src = "up", file = list(datapath = f, name = "wide.csv", size = file.size(f), type = "text/csv"))
+  check(grepl("wide format", html(output$wide_note)) && ncol(dat()) == 4, "Wide: upload is flagged and not converted until asked")
+  session$setInputs(wide_convert = 1)
+  check(nrow(dat()) == 9 && grepl("Converted", html(output$wide_note)), "Wide: converted on request")
+  session$setInputs(resp = "Value", trt = "Variety", blk = "Rep"); run(pw = "LSD")
+  check(!inherits(res(), "star_error") && ok()$anova$DF[ok()$anova$Source == "Error"] == 4, "Wide: converted data analysed as RCBD (error df 4)")
+  session$setInputs(wide_undo = 1); check(ncol(dat()) == 4, "Wide: conversion can be undone")
+  session$setInputs(src = "ex")
+
+  # ---- split plot: the block / replication column is checked before running ----
+  sp <- read.csv("example_splitcrd.csv")
+  ok_crd <- paste(as.character(split_layout_check(sp, "SplitCRD", "Irrigation", "Variety", "Rep")), collapse = "")
+  check(grepl("Error(a) has 9 df", ok_crd, fixed = TRUE) && grepl("6 df", ok_crd), "Split check: CRD shows Error(a) df 9 and the RCBD alternative (6)")
+  sp$Plot <- as.integer(interaction(sp$Rep, sp$Irrigation, drop = TRUE))
+  check(grepl("numbers the main plots across the whole trial", paste(as.character(split_layout_check(sp, "SplitRCBD", "Irrigation", "Variety", "Plot")), collapse = "")), "Split check: a main-plot number chosen as block is caught")
+  sp$Row <- seq_len(nrow(sp))
+  check(grepl("numbers the sub plots", paste(as.character(split_layout_check(sp, "SplitCRD", "Irrigation", "Variety", "Row")), collapse = "")), "Split check: a sub-plot number is caught")
+  rb <- paste(as.character(split_layout_check(read.csv("example_split.csv"), "SplitRCBD", "Nitrogen", "Variety", "Rep")), collapse = "")
+  check(grepl("Error(a) has 10 df", rb, fixed = TRUE), "Split check: RCBD example gives Error(a) df (3-1)(6-1) = 10")
+  session$setInputs(design = "SplitRCBD", example = "split1", trt_main = "Nitrogen", trt_sub = "Variety", blk = "Rep")
+  check(grepl("Error(a) has", html(output$split_check), fixed = TRUE), "Split check: shown on the screen")
 })

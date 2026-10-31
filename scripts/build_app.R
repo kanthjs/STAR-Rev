@@ -12,7 +12,10 @@ needed <- c(
   # mean comparison tests chosen by name at run time (get(paste0(test, ".test")) in star_helpers.R)
   "HSD.test", "duncan.test", "SNK.test", "scheffe.test",
   "star_aov", "star_correlation", "star_diagnostics", "star_ggplot", "star_ggplot_stats", "star_helpers",
-  "star_prepare_data", "star_read_table", "star_regression", "star_splitplot")
+  "star_prepare_data", "star_read_table", "star_regression", "star_splitplot", "star_ttest", "star_combined", "star_nonparametric",
+  # STAR's combined analysis, for the classic report of star_combined()
+  "combAOVTest", "combAOVTest.default", "buildAOVModel", "GenerateBalanceData", "estMissData", "prelimCombAOV",
+  "HeteroskedasticityTest", "HeteroskedasticityTest.default")
 dest <- file.path("prototype", "app", "star")
 unlink(dest, recursive = TRUE)
 dir.create(dest, recursive = TRUE)

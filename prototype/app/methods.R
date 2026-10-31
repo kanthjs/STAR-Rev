@@ -1,6 +1,6 @@
 # Text of the Methods page: what each analysis does, and the references for the methods (not for the software; the
 # software references are built from the installed packages in app.R). Keep this in step with the engine code:
-# engine/R/star_aov.R, star_splitplot.R, star_helpers.R, star_diagnostics.R, star_correlation.R, star_regression.R.
+# engine/R/star_aov.R, star_splitplot.R, star_helpers.R, star_diagnostics.R, star_ttest.R, star_combined.R, star_nonparametric.R, star_correlation.R, star_regression.R.
 
 methods_sections <- tagList(
   h4("การวิเคราะห์ความแปรปรวน: แผนการทดลองแบบสุ่มสมบูรณ์ (CRD)"),
@@ -16,6 +16,11 @@ methods_sections <- tagList(
     "ถ้าทุกคู่ บล็อก x สิ่งทดลอง มีจำนวนข้อมูลเท่ากันและไม่มีค่าตัวแปรตอบสนองหายไป จะประมาณโมเดลนี้ด้วย ", code("aov()"), " โดยตรง ",
     "ถ้าไม่เป็นเช่นนั้น จะใช้วิธีของ STAR ต้นฉบับ คือประมาณค่าที่หายไปและปรับองศาอิสระ (Gomez & Gomez, 1984) และจะไม่วิเคราะห์ข้อมูลที่มีโครงสร้างที่วิธีนี้รองรับไม่ได้"),
 
+  h4("การวิเคราะห์ความแปรปรวน: แผนการทดลองแบบ split plot ใน CRD"),
+  p("โมเดล: ", code("y ~ A * B + Error(Rep:A)"), " ประมาณค่าด้วย ", code("aov()"), " โดย A เป็นปัจจัยหลัก (main plot) ที่สุ่มให้แปลงใหญ่แบบสุ่มสมบูรณ์ (ไม่มีบล็อก) และ B เป็นปัจจัยรอง (sub plot) ",
+    "คอลัมน์ Replication ระบุหมายเลขแปลงใหญ่ภายในแต่ละระดับของ A Error(a) คือ แปลงใหญ่ภายใน A (Rep(A)) มีองศาอิสระ a(r - 1) ใช้ทดสอบ A ส่วน Error(b) มีองศาอิสระ a(r - 1)(b - 1) ใช้ทดสอบ B และ A x B (Gomez & Gomez, 1984) ",
+    "การคำนวณ CV(a), CV(b) และการเปรียบเทียบค่าเฉลี่ยเหมือนกับ split plot ใน RCBD ด้านล่าง ข้อมูลต้องครบและสมดุล คือมีหนึ่งค่าสังเกตในทุกคู่ Replication x A x B"),
+
   h4("การวิเคราะห์ความแปรปรวน: แผนการทดลองแบบ split plot ใน RCBD"),
   p("โมเดล: ", code("y ~ Block + A * B + Error(Block:A)"), " ประมาณค่าด้วย ", code("aov()"), " (Chambers et al., 1992) โดย A เป็นปัจจัยหลัก (main plot) และ B เป็นปัจจัยรอง (sub plot) ",
     "Error(a) (บล็อก x A) ใช้ทดสอบ Block และ A ส่วน Error(b) (ค่าคลาดเคลื่อนที่เหลือ) ใช้ทดสอบ B และ A x B ค่า CV(a) และ CV(b) คำนวณจาก mean square ของ error ทั้งสอง ",
@@ -23,6 +28,22 @@ methods_sections <- tagList(
   p("การเปรียบเทียบค่าเฉลี่ยใน split plot: เปรียบเทียบ A ด้วย Error(a) และ B ด้วย Error(b) ค่าความคลาดเคลื่อนมาตรฐานคำนวณจากโมเดล sqrt(MS error / n) ",
     "เมื่อปฏิสัมพันธ์มีนัยสำคัญ จะเปรียบเทียบ B ภายในแต่ละระดับของ A ด้วย Error(b) และเปรียบเทียบ A ภายในแต่ละระดับของ B ด้วย error รวม ",
     "[MS(a) + (b - 1) MS(b)] / b ซึ่งองศาอิสระได้จากการประมาณของ Satterthwaite (Satterthwaite, 1946; Gomez & Gomez, 1984) และปัดลง"),
+
+  h4("การวิเคราะห์ร่วมหลายสถานที่ / ฤดูกาล (combined analysis)"),
+  p("หนึ่งปัจจัยสิ่งทดลอง (T) ที่ทดลองซ้ำในหลายสภาพแวดล้อม (E: สถานที่ ฤดูกาล หรือปี) ตามวิธีของ combAOVTest ใน STAR (Gomez & Gomez, 1984, บทที่ 8) ",
+    "RCBD: ", code("y ~ E + E:Rep + T + T:E"), " โดย E ทดสอบด้วย Rep ภายใน E ส่วน Rep ภายใน E, T และ T x E ทดสอบด้วย error รวม (pooled error) ",
+    "CRD: ", code("y ~ E + T + T:E"), " ทุกอิทธิพลทดสอบด้วย error รวม สภาพแวดล้อมถือเป็นอิทธิพลคงที่ (fixed) เหมือน STAR ",
+    "วิเคราะห์แต่ละสภาพแวดล้อมแยกกันด้วย และทดสอบความเท่ากันของความแปรปรวนของ error ระหว่างสภาพแวดล้อมด้วย Bartlett's test (Bartlett, 1937) จาก mean square และองศาอิสระของ error ",
+    "ถ้าความแปรปรวนต่างกัน การรวม error อาจไม่เหมาะสม การเปรียบเทียบค่าเฉลี่ยเหมือน ANOVA สองปัจจัย: เมื่อ T x E มีนัยสำคัญ จะเปรียบเทียบ T ภายในแต่ละ E (และ E ภายในแต่ละ T) ด้วย error รวม ข้อมูล RCBD ต้องครบและสมดุล"),
+
+  h4("การแปลงข้อมูล (data transformation)"),
+  p("เลือกได้ใน ANOVA: log(y + 1) สำหรับข้อมูลนับที่มีช่วงกว้าง, sqrt(y + 0.5) สำหรับข้อมูลนับค่าน้อย และ arcsine ของ sqrt(y / 100) (เป็นองศา) สำหรับร้อยละ 0 ถึง 100 (Gomez & Gomez, 1984, บทที่ 7) ",
+    "ตาราง ANOVA ค่าเฉลี่ย อักษร SE(m), SED และ LSD อยู่ในสเกลที่แปลงแล้ว และแสดงค่าเฉลี่ยที่แปลงกลับเป็นหน่วยเดิมสำหรับการรายงาน: exp(m) - 1, m^2 - 0.5 และ 100 sin^2(m)"),
+
+  h4("ตารางค่าเฉลี่ยสำหรับตีพิมพ์"),
+  p("ใต้ตารางค่าเฉลี่ยของแต่ละปัจจัยแสดง ค่า F พร้อมเครื่องหมาย (** p < 0.01, * p < 0.05, ns ไม่มีนัยสำคัญ), ค่าเฉลี่ยรวม, CV, ",
+    "SE(m) = sqrt(MSE / r), SED = sqrt(2 MSE / r) และ LSD = t(1 - alpha/2, df) x SED โดย MSE และ df เป็นของ error ที่ใช้ทดสอบปัจจัยนั้น (Error(a) หรือ Error(b) ใน split plot) ",
+    "และ r คือจำนวนค่าสังเกตต่อระดับ (ใช้ค่าเฉลี่ยฮาร์มอนิกเมื่อไม่เท่ากัน)"),
 
   h4("การเปรียบเทียบค่าเฉลี่ย (post hoc tests)"),
   p("Fisher's protected LSD (Fisher, 1935), Tukey's HSD (Tukey, 1949; ใช้ Tukey-Kramer, Kramer, 1956, เมื่อขนาดกลุ่มไม่เท่ากัน) และ Duncan's multiple range test, DMRT (Duncan, 1955) ",
@@ -38,6 +59,19 @@ methods_sections <- tagList(
     "ความเท่ากันของความแปรปรวนใน ANOVA: Levene test แบบใช้มัธยฐาน หรือ Brown-Forsythe (Brown & Forsythe, 1974) ระหว่างกลุ่มสิ่งทดลอง ",
     "ความแปรปรวนคงที่ในการถดถอย: Breusch-Pagan test (Breusch & Pagan, 1979) แบบ studentized (Koenker, 1981) เทียบกับค่าที่ประมาณได้ ",
     "การทดสอบเหล่านี้เป็นเพียงข้อแนะนำ ไม่ใช่ข้อพิสูจน์ เมื่อตัวอย่างน้อยจะมีอำนาจการทดสอบต่ำ และเมื่อตัวอย่างมากจะชี้ความเบี่ยงเบนเล็กน้อยที่ไม่มีความสำคัญในทางปฏิบัติ"),
+
+  h4("การทดสอบที (t-test)"),
+  p("ใช้ ", code("t.test()"), " สองกลุ่มอิสระ: แสดงทั้ง t-test แบบรวมความแปรปรวน (pooled, Student, 1908) และแบบไม่สมมติว่าความแปรปรวนเท่ากันของ Welch (Welch, 1947) ซึ่งใช้องศาอิสระของ Satterthwaite (Satterthwaite, 1946) เหมือน STAR ต้นฉบับ ",
+    "ผู้ใช้เลือกได้ว่าจะสรุปผลจากแบบใด ค่าเริ่มต้นคือ Welch ความเท่ากันของความแปรปรวนทดสอบด้วย F test (", code("var.test()"), ") ",
+    "แบบจับคู่ (paired): ทดสอบค่าเฉลี่ยของผลต่าง (ค่าแรก - ค่าที่สอง) ของแต่ละหน่วย ใช้เฉพาะแถวที่มีค่าทั้งสอง แบบกลุ่มเดียว (one sample): เปรียบเทียบค่าเฉลี่ยกับค่าที่กำหนด ",
+    "ช่วงความเชื่อมั่นของผลต่างอยู่ที่ระดับ 1 - alpha ขนาดอิทธิพล Cohen's d (Cohen, 1988) = ผลต่างของค่าเฉลี่ย / SD รวม (สองกลุ่มอิสระ), ค่าเฉลี่ยของผลต่าง / SD ของผลต่าง (dz, แบบจับคู่) หรือ (ค่าเฉลี่ย - ค่าที่กำหนด) / SD (กลุ่มเดียว) ",
+    "คำว่า เล็ก ปานกลาง และใหญ่ ใช้เกณฑ์ 0.2, 0.5 และ 0.8 ของ Cohen การแจกแจงปกติตรวจด้วย Shapiro-Wilk test ของแต่ละกลุ่ม หรือของผลต่างในแบบจับคู่"),
+
+  h4("การทดสอบแบบไม่อิงพารามิเตอร์ (nonparametric)"),
+  p("ใช้เมื่อข้อมูลไม่เป็นไปตามข้อสมมติ (การแจกแจงปกติ ความแปรปรวนเท่ากัน) ANOVA หนึ่งปัจจัย: CRD ใช้ Kruskal-Wallis test (Kruskal & Wallis, 1952) ",
+    "และ RCBD ใช้ Friedman test (Friedman, 1937) คำนวณด้วยแพ็กเกจ agricolae ซึ่งเปรียบเทียบอันดับ (rank) แบบ Fisher's LSD (Conover, 1999) อักษรแสดงเฉพาะเมื่อการทดสอบรวมมีนัยสำคัญ ",
+    "t-test: สองกลุ่มอิสระใช้ Wilcoxon rank-sum (Mann-Whitney) test (Wilcoxon, 1945; Mann & Whitney, 1947) แบบจับคู่และกลุ่มเดียวใช้ Wilcoxon signed-rank test ด้วย ", code("wilcox.test()"),
+    " ค่าประมาณและช่วงความเชื่อมั่นเป็นของ Hodges-Lehmann (Hodges & Lehmann, 1963) เมื่อมีค่าซ้ำกันจะใช้การประมาณด้วยการแจกแจงปกติ"),
 
   h4("สหสัมพันธ์ (correlation)"),
   p("สหสัมพันธ์แบบ Pearson, Spearman หรือ Kendall ของตัวแปรแต่ละคู่ด้วย ", code("cor.test()"), " (Pearson, 1895; Spearman, 1904; Kendall, 1938; Hollander & Wolfe, 1973; ",
@@ -60,6 +94,7 @@ methods_sections <- tagList(
 # references for the methods above (software references are generated from the packages in app.R)
 method_refs <- c(
   "Akaike H (1974). A new look at the statistical model identification. IEEE Transactions on Automatic Control, 19(6), 716-723. https://doi.org/10.1109/TAC.1974.1100705",
+  "Bartlett MS (1937). Properties of sufficiency and statistical tests. Proceedings of the Royal Society of London, Series A, 160(901), 268-282. https://doi.org/10.1098/rspa.1937.0109",
   "Belsley DA, Kuh E, Welsch RE (1980). Regression Diagnostics: Identifying Influential Data and Sources of Collinearity. Wiley, New York.",
   "Benjamini Y, Hochberg Y (1995). Controlling the false discovery rate: a practical and powerful approach to multiple testing. Journal of the Royal Statistical Society B, 57(1), 289-300. https://doi.org/10.1111/j.2517-6161.1995.tb02031.x",
   "Best DJ, Roberts DE (1975). Algorithm AS 89: the upper tail probabilities of Spearman's rho. Applied Statistics, 24(3), 377-379.",
@@ -67,21 +102,30 @@ method_refs <- c(
   "Brown MB, Forsythe AB (1974). Robust tests for the equality of variances. Journal of the American Statistical Association, 69(346), 364-367. https://doi.org/10.1080/01621459.1974.10482955",
   "Chambers JM (1992). Linear models. Chapter 4 in Chambers JM, Hastie TJ (eds), Statistical Models in S. Wadsworth & Brooks/Cole, Pacific Grove.",
   "Chambers JM, Freeny A, Heiberger RM (1992). Analysis of variance; designed experiments. Chapter 5 in Chambers JM, Hastie TJ (eds), Statistical Models in S. Wadsworth & Brooks/Cole, Pacific Grove.",
+  "Cohen J (1988). Statistical Power Analysis for the Behavioral Sciences, 2nd edition. Lawrence Erlbaum, Hillsdale, NJ.",
+  "Conover WJ (1999). Practical Nonparametric Statistics, 3rd edition. John Wiley & Sons, New York.",
   "Cook RD (1977). Detection of influential observation in linear regression. Technometrics, 19(1), 15-18. https://doi.org/10.1080/00401706.1977.10489493",
   "Duncan DB (1955). Multiple range and multiple F tests. Biometrics, 11(1), 1-42. https://doi.org/10.2307/3001478",
   "Fisher RA (1921). On the 'probable error' of a coefficient of correlation deduced from a small sample. Metron, 1(4), 3-32.",
   "Fisher RA (1935). The Design of Experiments. Oliver and Boyd, Edinburgh.",
+  "Friedman M (1937). The use of ranks to avoid the assumption of normality implicit in the analysis of variance. Journal of the American Statistical Association, 32(200), 675-701. https://doi.org/10.1080/01621459.1937.10503522",
   "Gomez KA, Gomez AA (1984). Statistical Procedures for Agricultural Research, 2nd edition. Wiley, New York.",
+  "Hodges JL, Lehmann EL (1963). Estimates of location based on rank tests. The Annals of Mathematical Statistics, 34(2), 598-611. https://doi.org/10.1214/aoms/1177704172",
   "Hollander M, Wolfe DA (1973). Nonparametric Statistical Methods. Wiley, New York.",
   "Holm S (1979). A simple sequentially rejective multiple test procedure. Scandinavian Journal of Statistics, 6(2), 65-70.",
   "Kendall MG (1938). A new measure of rank correlation. Biometrika, 30(1-2), 81-93. https://doi.org/10.2307/2332226",
   "Koenker R (1981). A note on studentizing a test for heteroscedasticity. Journal of Econometrics, 17(1), 107-112. https://doi.org/10.1016/0304-4076(81)90062-2",
   "Kramer CY (1956). Extension of multiple range tests to group means with unequal numbers of replications. Biometrics, 12(3), 307-310. https://doi.org/10.2307/3001469",
+  "Kruskal WH, Wallis WA (1952). Use of ranks in one-criterion variance analysis. Journal of the American Statistical Association, 47(260), 583-621. https://doi.org/10.1080/01621459.1952.10483441",
   "Lilliefors HW (1967). On the Kolmogorov-Smirnov test for normality with mean and variance unknown. Journal of the American Statistical Association, 62(318), 399-402. https://doi.org/10.1080/01621459.1967.10482916",
+  "Mann HB, Whitney DR (1947). On a test of whether one of two random variables is stochastically larger than the other. The Annals of Mathematical Statistics, 18(1), 50-60. https://doi.org/10.1214/aoms/1177730491",
   "Pearson K (1895). Notes on regression and inheritance in the case of two parents. Proceedings of the Royal Society of London, 58, 240-242.",
   "Satterthwaite FE (1946). An approximate distribution of estimates of variance components. Biometrics Bulletin, 2(6), 110-114. https://doi.org/10.2307/3002019",
   "Shapiro SS, Wilk MB (1965). An analysis of variance test for normality (complete samples). Biometrika, 52(3-4), 591-611. https://doi.org/10.2307/2333709",
   "Spearman C (1904). The proof and measurement of association between two things. The American Journal of Psychology, 15(1), 72-101. https://doi.org/10.2307/1412159",
+  "Student (1908). The probable error of a mean. Biometrika, 6(1), 1-25. https://doi.org/10.2307/2331554",
   "Tukey JW (1949). Comparing individual means in the analysis of variance. Biometrics, 5(2), 99-114. https://doi.org/10.2307/3001913",
+  "Welch BL (1947). The generalization of 'Student's' problem when several different population variances are involved. Biometrika, 34(1-2), 28-35. https://doi.org/10.2307/2332510",
+  "Wilcoxon F (1945). Individual comparisons by ranking methods. Biometrics Bulletin, 1(6), 80-83. https://doi.org/10.2307/3001968",
   "Wilkinson GN, Rogers CE (1973). Symbolic description of factorial models for analysis of variance. Applied Statistics, 22(3), 392-399. https://doi.org/10.2307/2346786"
 )
